@@ -109,3 +109,4 @@ C:\Users\gusta\OneDrive\Desktop\Fafnir_Vault\fanfnir_back\obj\Debug\net8.0\refin
 C:\Users\gusta\OneDrive\Desktop\Fafnir_Vault\fanfnir_back\obj\Debug\net8.0\fanfnir_back.pdb
 C:\Users\gusta\OneDrive\Desktop\Fafnir_Vault\fanfnir_back\obj\Debug\net8.0\fanfnir_back.genruntimeconfig.cache
 C:\Users\gusta\OneDrive\Desktop\Fafnir_Vault\fanfnir_back\obj\Debug\net8.0\ref\fanfnir_back.dll
+C:\Users\gusta\OneDrive\Desktop\Fafnir_Vault\fanfnir_back\obj\Debug\net8.0\fanfnir_back.sourcelink.json

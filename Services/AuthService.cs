@@ -94,14 +94,25 @@ public static class PasswordHash
 
     public static bool Verify(string password, string stored)
     {
-        var parts = stored.Split('$');
-        if (parts.Length != 4 || parts[0] != Prefix) return false;
-        if (!int.TryParse(parts[1], out var iterations)) return false;
+        try
+        {
+            var parts = stored.Split('$');
+            if (parts.Length != 4 || parts[0] != Prefix) return false;
+            if (!int.TryParse(parts[1], out var iterations)) return false;
 
-        var salt = Convert.FromBase64String(parts[2]);
-        var expected = Convert.FromBase64String(parts[3]);
-        var actual = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, HashAlgorithmName.SHA256, expected.Length);
-        return CryptographicOperations.FixedTimeEquals(actual, expected);
+            var salt = Convert.FromBase64String(parts[2]);
+            var expected = Convert.FromBase64String(parts[3]);
+            var actual = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, HashAlgorithmName.SHA256, expected.Length);
+            return CryptographicOperations.FixedTimeEquals(actual, expected);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
     }
 
     public static bool NeedsUpgrade(string stored) => !stored.StartsWith($"{Prefix}${Iterations}$", StringComparison.Ordinal);
