@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="..\build\fanfnir_back.props" />
+</Project>
