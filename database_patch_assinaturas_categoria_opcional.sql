@@ -1,0 +1,2 @@
+ALTER TABLE "Assinaturas"
+ALTER COLUMN "FkIdCategoria" DROP NOT NULL;

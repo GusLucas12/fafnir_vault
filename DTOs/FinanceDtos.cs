@@ -15,14 +15,14 @@ public record CategoriasCreateDto(int FkIdUsuario, string Nome, string Tipo, str
 public record CategoriasUpdateDto(string Nome, string Tipo, string? Cor, string? Icone, bool Ativo);
 public record CategoriasResponseDto(int Id, int? FkIdUsuario, string Nome, string Tipo, string? Cor, string? Icone, bool Ativo, DateTime DataCriacao, DateTime DataAtualizacao);
 
-public record TransacoesCreateDto(int FkIdUsuario, int FkIdCarteira, int FkIdCategoria, string Descricao, string Tipo, decimal Valor, string? FormaPagamento, DateTime DataTransacao, short? MesReferencia, int? AnoReferencia, string? Observacao);
-public record TransacoesUpdateDto(int FkIdCarteira, int FkIdCategoria, string Descricao, string Tipo, decimal Valor, string? FormaPagamento, DateTime DataTransacao, short? MesReferencia, int? AnoReferencia, string? Observacao);
+public record TransacoesCreateDto(int FkIdUsuario, int FkIdCarteira, int? FkIdCategoria, string Descricao, string Tipo, decimal Valor, string? FormaPagamento, DateTime DataTransacao, short? MesReferencia, int? AnoReferencia, string? Observacao);
+public record TransacoesUpdateDto(int FkIdCarteira, int? FkIdCategoria, string Descricao, string Tipo, decimal Valor, string? FormaPagamento, DateTime DataTransacao, short? MesReferencia, int? AnoReferencia, string? Observacao);
 public record TransacoesResponseDto(int Id, int FkIdUsuario, int FkIdCarteira, int? FkIdCategoria, string Descricao, string Tipo, decimal Valor, string? FormaPagamento, DateTime DataTransacao, short MesReferencia, int AnoReferencia, string? Observacao, DateTime DataCriacao, DateTime DataAtualizacao);
 public record CategoriaTotalDto(int? FkIdCategoria, string Categoria, decimal Total);
 
-public record AssinaturasCreateDto(int FkIdUsuario, int FkIdCategoria, int FkIdCarteira, string Nome, decimal Valor, short DiaCobranca, bool Ativa, DateTime DataInicio, DateTime? DataFim, string? Observacao);
-public record AssinaturasUpdateDto(int FkIdCategoria, int FkIdCarteira, string Nome, decimal Valor, short DiaCobranca, bool Ativa, DateTime DataInicio, DateTime? DataFim, string? Observacao);
-public record AssinaturasResponseDto(int Id, int FkIdUsuario, int FkIdCategoria, int FkIdCarteira, string Nome, decimal Valor, short DiaCobranca, bool Ativa, DateTime DataInicio, DateTime? DataFim, string? Observacao, DateTime DataCriacao, DateTime DataAtualizacao);
+public record AssinaturasCreateDto(int FkIdUsuario, int? FkIdCategoria, int FkIdCarteira, string Nome, decimal Valor, short DiaCobranca, bool Ativa, DateTime DataInicio, DateTime? DataFim, string? Observacao);
+public record AssinaturasUpdateDto(int? FkIdCategoria, int FkIdCarteira, string Nome, decimal Valor, short DiaCobranca, bool Ativa, DateTime DataInicio, DateTime? DataFim, string? Observacao);
+public record AssinaturasResponseDto(int Id, int FkIdUsuario, int? FkIdCategoria, int FkIdCarteira, string Nome, decimal Valor, short DiaCobranca, bool Ativa, DateTime DataInicio, DateTime? DataFim, string? Observacao, DateTime DataCriacao, DateTime DataAtualizacao);
 
 public record OrcamentosMensaisCreateDto(int FkIdUsuario, int FkIdCategoria, short MesReferencia, int AnoReferencia, decimal ValorLimite);
 public record OrcamentosMensaisUpdateDto(int FkIdCategoria, short MesReferencia, int AnoReferencia, decimal ValorLimite);

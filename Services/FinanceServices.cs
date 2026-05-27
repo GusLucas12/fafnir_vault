@@ -89,21 +89,23 @@ public interface IDashboardService
 
 internal static class FinanceRules
 {
-    public static bool IsTipoTransacao(string tipo) => tipo is "receita" or "despesa";
+    public static bool IsTipoTransacao(string tipo) => NormalizeTipoDb(tipo) is "RECEITA" or "DESPESA";
     public static bool IsTipoCarteira(string tipo) => tipo is "CONTA_CORRENTE" or "POUPANCA" or "DINHEIRO" or "CARTAO_CREDITO" or "INVESTIMENTO" or "OUTRA";
     public static bool IsTipoMeta(string tipo) => tipo is "economia_mensal" or "compra" or "reserva_emergencia" or "viagem" or "investimento" or "quitar_divida";
     public static bool IsValidMonth(int mes) => mes is >= 1 and <= 12;
     public static bool IsValidYear(int ano) => ano is >= 1900 and <= 9999;
     public static DateTime Now() => DateTime.Now;
     public static string NormalizeTipoCarteira(string tipo) => tipo.Trim().ToUpperInvariant();
+    public static string NormalizeTipoDb(string tipo) => tipo.Trim().ToUpperInvariant();
+    public static string NormalizeTipoApi(string tipo) => tipo.Trim().ToLowerInvariant();
 }
 
 internal static class Maps
 {
     public static UsuariosResponseDto ToDto(this Usuarios e) => new(e.Id, e.Nome, e.Email, e.DataCriacao, e.DataAtualizacao);
     public static CarteirasResponseDto ToDto(this Carteiras e) => new(e.Id, e.FkIdUsuario, e.Nome, e.Tipo, e.SaldoInicial, e.Ativo, e.DataCriacao, e.DataAtualizacao);
-    public static CategoriasResponseDto ToDto(this Categorias e) => new(e.Id, e.FkIdUsuario, e.Nome, e.Tipo, e.Cor, e.Icone, e.Ativo, e.DataCriacao, e.DataAtualizacao);
-    public static TransacoesResponseDto ToDto(this Transacoes e) => new(e.Id, e.FkIdUsuario, e.FkIdCarteira, e.FkIdCategoria, e.Descricao, e.Tipo, e.Valor, e.FormaPagamento, e.DataTransacao, e.MesReferencia, e.AnoReferencia, e.Observacao, e.DataCriacao, e.DataAtualizacao);
+    public static CategoriasResponseDto ToDto(this Categorias e) => new(e.Id, e.FkIdUsuario, e.Nome, FinanceRules.NormalizeTipoApi(e.Tipo), e.Cor, e.Icone, e.Ativo, e.DataCriacao, e.DataAtualizacao);
+    public static TransacoesResponseDto ToDto(this Transacoes e) => new(e.Id, e.FkIdUsuario, e.FkIdCarteira, e.FkIdCategoria, e.Descricao, FinanceRules.NormalizeTipoApi(e.Tipo), e.Valor, e.FormaPagamento, e.DataTransacao, e.MesReferencia, e.AnoReferencia, e.Observacao, e.DataCriacao, e.DataAtualizacao);
     public static AssinaturasResponseDto ToDto(this Assinaturas e) => new(e.Id, e.FkIdUsuario, e.FkIdCategoria, e.FkIdCarteira, e.Nome, e.Valor, e.DiaCobranca, e.Ativa, e.DataInicio, e.DataFim, e.Observacao, e.DataCriacao, e.DataAtualizacao);
     public static OrcamentosMensaisResponseDto ToDto(this OrcamentosMensais e) => new(e.Id, e.FkIdUsuario, e.FkIdCategoria, e.MesReferencia, e.AnoReferencia, e.ValorLimite, e.DataCriacao, e.DataAtualizacao);
     public static MetasResponseDto ToDto(this Metas e) => new(e.Id, e.FkIdUsuario, e.FkIdCarteira, e.Nome, e.Descricao, e.TipoMeta, e.ValorAlvo, e.ValorAtual, e.MesReferencia, e.AnoReferencia, e.DataInicio, e.DataFim, e.Ativa, e.Concluida, e.DataCriacao, e.DataAtualizacao);
@@ -216,7 +218,7 @@ public sealed class CategoriasService(FafnirContext db) : ICategoriasService
         if (dto.FkIdUsuario <= 0 || string.IsNullOrWhiteSpace(dto.Nome) || !FinanceRules.IsTipoTransacao(dto.Tipo)) return ServiceResult<CategoriasResponseDto>.BadRequest("FkIdUsuario, Nome e Tipo receita/despesa sao obrigatorios.");
         if (!await db.Usuarios.AnyAsync(x => x.Id == dto.FkIdUsuario, ct)) return ServiceResult<CategoriasResponseDto>.BadRequest("Usuario informado nao existe.");
         var now = FinanceRules.Now();
-        var item = new Categorias { FkIdUsuario = dto.FkIdUsuario, Nome = dto.Nome.Trim(), Tipo = dto.Tipo, Cor = dto.Cor, Icone = dto.Icone, Ativo = dto.Ativo, DataCriacao = now, DataAtualizacao = now };
+        var item = new Categorias { FkIdUsuario = dto.FkIdUsuario, Nome = dto.Nome.Trim(), Tipo = FinanceRules.NormalizeTipoDb(dto.Tipo), Cor = dto.Cor, Icone = dto.Icone, Ativo = dto.Ativo, DataCriacao = now, DataAtualizacao = now };
         db.Categorias.Add(item); await db.SaveChangesAsync(ct);
         return ServiceResult<CategoriasResponseDto>.Created(item.ToDto());
     }
@@ -226,7 +228,7 @@ public sealed class CategoriasService(FafnirContext db) : ICategoriasService
         var item = await db.Categorias.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (item is null) return ServiceResult<CategoriasResponseDto>.NotFound("Categoria nao encontrada.");
         if (string.IsNullOrWhiteSpace(dto.Nome) || !FinanceRules.IsTipoTransacao(dto.Tipo)) return ServiceResult<CategoriasResponseDto>.BadRequest("Nome e Tipo receita/despesa sao obrigatorios.");
-        item.Nome = dto.Nome.Trim(); item.Tipo = dto.Tipo; item.Cor = dto.Cor; item.Icone = dto.Icone; item.Ativo = dto.Ativo; item.DataAtualizacao = FinanceRules.Now();
+        item.Nome = dto.Nome.Trim(); item.Tipo = FinanceRules.NormalizeTipoDb(dto.Tipo); item.Cor = dto.Cor; item.Icone = dto.Icone; item.Ativo = dto.Ativo; item.DataAtualizacao = FinanceRules.Now();
         await db.SaveChangesAsync(ct);
         return ServiceResult<CategoriasResponseDto>.Ok(item.ToDto());
     }
@@ -252,7 +254,7 @@ public sealed class TransacoesService(FafnirContext db) : ITransacoesService
         if (validation is not null) return ServiceResult<TransacoesResponseDto>.BadRequest(validation);
         var carteira = await db.Carteiras.FirstAsync(x => x.Id == dto.FkIdCarteira, ct);
         var now = FinanceRules.Now();
-        var item = new Transacoes { FkIdUsuario = dto.FkIdUsuario, FkIdCarteira = dto.FkIdCarteira, FkIdCategoria = dto.FkIdCategoria, Descricao = dto.Descricao.Trim(), Tipo = dto.Tipo, Valor = dto.Valor, FormaPagamento = dto.FormaPagamento, DataTransacao = dto.DataTransacao, MesReferencia = dto.MesReferencia ?? (short)dto.DataTransacao.Month, AnoReferencia = dto.AnoReferencia ?? dto.DataTransacao.Year, Observacao = dto.Observacao, DataCriacao = now, DataAtualizacao = now };
+        var item = new Transacoes { FkIdUsuario = dto.FkIdUsuario, FkIdCarteira = dto.FkIdCarteira, FkIdCategoria = dto.FkIdCategoria, Descricao = dto.Descricao.Trim(), Tipo = FinanceRules.NormalizeTipoDb(dto.Tipo), Valor = dto.Valor, FormaPagamento = dto.FormaPagamento, DataTransacao = dto.DataTransacao, MesReferencia = dto.MesReferencia ?? (short)dto.DataTransacao.Month, AnoReferencia = dto.AnoReferencia ?? dto.DataTransacao.Year, Observacao = dto.Observacao, DataCriacao = now, DataAtualizacao = now };
         ApplyTransacao(carteira, item.Tipo, item.Valor);
         db.Transacoes.Add(item); await db.SaveChangesAsync(ct);
         return ServiceResult<TransacoesResponseDto>.Created(item.ToDto());
@@ -268,7 +270,7 @@ public sealed class TransacoesService(FafnirContext db) : ITransacoesService
         var oldCarteira = await db.Carteiras.FirstAsync(x => x.Id == item.FkIdCarteira, ct);
         ApplyTransacao(oldCarteira, item.Tipo, -item.Valor);
         var newCarteira = item.FkIdCarteira == dto.FkIdCarteira ? oldCarteira : await db.Carteiras.FirstAsync(x => x.Id == dto.FkIdCarteira, ct);
-        item.FkIdCarteira = dto.FkIdCarteira; item.FkIdCategoria = dto.FkIdCategoria; item.Descricao = dto.Descricao.Trim(); item.Tipo = dto.Tipo; item.Valor = dto.Valor; item.FormaPagamento = dto.FormaPagamento; item.DataTransacao = dto.DataTransacao; item.MesReferencia = dto.MesReferencia ?? (short)dto.DataTransacao.Month; item.AnoReferencia = dto.AnoReferencia ?? dto.DataTransacao.Year; item.Observacao = dto.Observacao; item.DataAtualizacao = FinanceRules.Now();
+        item.FkIdCarteira = dto.FkIdCarteira; item.FkIdCategoria = dto.FkIdCategoria; item.Descricao = dto.Descricao.Trim(); item.Tipo = FinanceRules.NormalizeTipoDb(dto.Tipo); item.Valor = dto.Valor; item.FormaPagamento = dto.FormaPagamento; item.DataTransacao = dto.DataTransacao; item.MesReferencia = dto.MesReferencia ?? (short)dto.DataTransacao.Month; item.AnoReferencia = dto.AnoReferencia ?? dto.DataTransacao.Year; item.Observacao = dto.Observacao; item.DataAtualizacao = FinanceRules.Now();
         ApplyTransacao(newCarteira, item.Tipo, item.Valor);
         await db.SaveChangesAsync(ct);
         return ServiceResult<TransacoesResponseDto>.Ok(item.ToDto());
@@ -292,25 +294,25 @@ public sealed class TransacoesService(FafnirContext db) : ITransacoesService
 
     internal static async Task<IReadOnlyList<CategoriaTotalDto>> TotaisCategoria(FafnirContext db, int usuarioId, int mes, int ano, string? tipo, CancellationToken ct) =>
         await db.Transacoes.AsNoTracking()
-            .Where(x => x.FkIdUsuario == usuarioId && x.MesReferencia == mes && x.AnoReferencia == ano && (tipo == null || x.Tipo == tipo))
+            .Where(x => x.FkIdUsuario == usuarioId && x.MesReferencia == mes && x.AnoReferencia == ano && (tipo == null || x.Tipo == FinanceRules.NormalizeTipoDb(tipo)))
             .GroupBy(x => new { x.FkIdCategoria, Categoria = x.FkIdCategoriaNavigation == null ? "Sem categoria" : x.FkIdCategoriaNavigation.Nome })
             .Select(g => new CategoriaTotalDto(g.Key.FkIdCategoria, g.Key.Categoria, g.Sum(x => x.Valor)))
             .ToListAsync(ct);
 
-    private async Task<string?> ValidateTransacaoAsync(int usuarioId, int carteiraId, int categoriaId, string tipo, decimal valor, string descricao, CancellationToken ct)
+    private async Task<string?> ValidateTransacaoAsync(int usuarioId, int carteiraId, int? categoriaId, string tipo, decimal valor, string descricao, CancellationToken ct)
     {
-        if (usuarioId <= 0 || carteiraId <= 0 || categoriaId <= 0 || string.IsNullOrWhiteSpace(descricao)) return "Usuario, carteira, categoria e descricao sao obrigatorios.";
+        if (usuarioId <= 0 || carteiraId <= 0 || string.IsNullOrWhiteSpace(descricao)) return "Usuario, carteira e descricao sao obrigatorios.";
         if (!FinanceRules.IsTipoTransacao(tipo)) return "Tipo deve ser receita ou despesa.";
         if (valor <= 0) return "Valor deve ser maior que zero.";
         if (!await db.Usuarios.AnyAsync(x => x.Id == usuarioId, ct)) return "Usuario informado nao existe.";
         if (!await db.Carteiras.AnyAsync(x => x.Id == carteiraId && x.FkIdUsuario == usuarioId, ct)) return "Carteira informada nao existe para o usuario.";
-        if (!await db.Categorias.AnyAsync(x => x.Id == categoriaId && (x.FkIdUsuario == usuarioId || x.FkIdUsuario == null), ct)) return "Categoria informada nao existe para o usuario.";
+        if (categoriaId.HasValue && !await db.Categorias.AnyAsync(x => x.Id == categoriaId.Value && (x.FkIdUsuario == usuarioId || x.FkIdUsuario == null), ct)) return "Categoria informada nao existe para o usuario.";
         return null;
     }
 
     private static void ApplyTransacao(Carteiras carteira, string tipo, decimal valor)
     {
-        carteira.SaldoInicial += tipo == "receita" ? valor : -valor;
+        carteira.SaldoInicial += tipo == "RECEITA" ? valor : -valor;
         carteira.DataAtualizacao = FinanceRules.Now();
     }
 }
@@ -362,14 +364,14 @@ public sealed class AssinaturasService(FafnirContext db, ITransacoesService tran
         return await transacoesService.CreateAsync(new TransacoesCreateDto(assinatura.FkIdUsuario, assinatura.FkIdCarteira, assinatura.FkIdCategoria, assinatura.Nome, "despesa", assinatura.Valor, null, new DateTime(ano, mes, dia), (short)mes, ano, assinatura.Observacao), ct);
     }
 
-    private async Task<string?> ValidateAsync(int usuarioId, int categoriaId, int carteiraId, string nome, decimal valor, short dia, CancellationToken ct)
+    private async Task<string?> ValidateAsync(int usuarioId, int? categoriaId, int carteiraId, string nome, decimal valor, short dia, CancellationToken ct)
     {
-        if (usuarioId <= 0 || categoriaId <= 0 || carteiraId <= 0 || string.IsNullOrWhiteSpace(nome)) return "Usuario, categoria, carteira e nome sao obrigatorios.";
+        if (usuarioId <= 0 || carteiraId <= 0 || string.IsNullOrWhiteSpace(nome)) return "Usuario, carteira e nome sao obrigatorios.";
         if (valor <= 0) return "Valor deve ser maior que zero.";
         if (dia is < 1 or > 31) return "DiaCobranca deve estar entre 1 e 31.";
         if (!await db.Usuarios.AnyAsync(x => x.Id == usuarioId, ct)) return "Usuario informado nao existe.";
         if (!await db.Carteiras.AnyAsync(x => x.Id == carteiraId && x.FkIdUsuario == usuarioId, ct)) return "Carteira informada nao existe para o usuario.";
-        if (!await db.Categorias.AnyAsync(x => x.Id == categoriaId && (x.FkIdUsuario == usuarioId || x.FkIdUsuario == null), ct)) return "Categoria informada nao existe para o usuario.";
+        if (categoriaId.HasValue && !await db.Categorias.AnyAsync(x => x.Id == categoriaId.Value && (x.FkIdUsuario == usuarioId || x.FkIdUsuario == null), ct)) return "Categoria informada nao existe para o usuario.";
         return null;
     }
 }
@@ -530,8 +532,8 @@ public sealed class DashboardService(FafnirContext db) : IDashboardService
     public async Task<DashboardMensalResponseDto> GetMensalAsync(int usuarioId, int mes, int ano, CancellationToken ct)
     {
         var transacoes = db.Transacoes.AsNoTracking().Where(x => x.FkIdUsuario == usuarioId && x.MesReferencia == mes && x.AnoReferencia == ano);
-        var totalReceitas = await transacoes.Where(x => x.Tipo == "receita").SumAsync(x => x.Valor, ct);
-        var totalDespesas = await transacoes.Where(x => x.Tipo == "despesa").SumAsync(x => x.Valor, ct);
+        var totalReceitas = await transacoes.Where(x => x.Tipo == "RECEITA").SumAsync(x => x.Valor, ct);
+        var totalDespesas = await transacoes.Where(x => x.Tipo == "DESPESA").SumAsync(x => x.Valor, ct);
         var assinaturasAtivas = await db.Assinaturas.AsNoTracking().Where(x => x.FkIdUsuario == usuarioId && x.Ativa).SumAsync(x => x.Valor, ct);
         var metasDoMes = await db.Metas.AsNoTracking().Where(x => x.FkIdUsuario == usuarioId && x.MesReferencia == mes && x.AnoReferencia == ano).ToListAsync(ct);
         var gastosPorCategoria = await TransacoesService.TotaisCategoria(db, usuarioId, mes, ano, "despesa", ct);
@@ -543,8 +545,8 @@ public sealed class DashboardService(FafnirContext db) : IDashboardService
                 x.FkIdCategoria,
                 x.FkIdCategoriaNavigation.Nome,
                 x.ValorLimite,
-                db.Transacoes.Where(t => t.FkIdUsuario == usuarioId && t.FkIdCategoria == x.FkIdCategoria && t.MesReferencia == mes && t.AnoReferencia == ano && t.Tipo == "despesa").Sum(t => t.Valor),
-                x.ValorLimite - db.Transacoes.Where(t => t.FkIdUsuario == usuarioId && t.FkIdCategoria == x.FkIdCategoria && t.MesReferencia == mes && t.AnoReferencia == ano && t.Tipo == "despesa").Sum(t => t.Valor)))
+                db.Transacoes.Where(t => t.FkIdUsuario == usuarioId && t.FkIdCategoria == x.FkIdCategoria && t.MesReferencia == mes && t.AnoReferencia == ano && t.Tipo == "DESPESA").Sum(t => t.Valor),
+                x.ValorLimite - db.Transacoes.Where(t => t.FkIdUsuario == usuarioId && t.FkIdCategoria == x.FkIdCategoria && t.MesReferencia == mes && t.AnoReferencia == ano && t.Tipo == "DESPESA").Sum(t => t.Valor)))
             .ToListAsync(ct);
 
         return new DashboardMensalResponseDto(
