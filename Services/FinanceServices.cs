@@ -90,10 +90,12 @@ public interface IDashboardService
 internal static class FinanceRules
 {
     public static bool IsTipoTransacao(string tipo) => tipo is "receita" or "despesa";
+    public static bool IsTipoCarteira(string tipo) => tipo is "CONTA_CORRENTE" or "POUPANCA" or "DINHEIRO" or "CARTAO_CREDITO" or "INVESTIMENTO" or "OUTRA";
     public static bool IsTipoMeta(string tipo) => tipo is "economia_mensal" or "compra" or "reserva_emergencia" or "viagem" or "investimento" or "quitar_divida";
     public static bool IsValidMonth(int mes) => mes is >= 1 and <= 12;
     public static bool IsValidYear(int ano) => ano is >= 1900 and <= 9999;
     public static DateTime Now() => DateTime.Now;
+    public static string NormalizeTipoCarteira(string tipo) => tipo.Trim().ToUpperInvariant();
 }
 
 internal static class Maps
@@ -166,7 +168,7 @@ public sealed class CarteirasService(FafnirContext db) : ICarteirasService
         var validation = await ValidateAsync(dto.FkIdUsuario, dto.Nome, dto.Tipo, ct);
         if (validation is not null) return ServiceResult<CarteirasResponseDto>.BadRequest(validation);
         var now = FinanceRules.Now();
-        var item = new Carteiras { FkIdUsuario = dto.FkIdUsuario, Nome = dto.Nome.Trim(), Tipo = dto.Tipo.Trim(), SaldoInicial = dto.SaldoInicial, Ativo = dto.Ativo, DataCriacao = now, DataAtualizacao = now };
+        var item = new Carteiras { FkIdUsuario = dto.FkIdUsuario, Nome = dto.Nome.Trim(), Tipo = FinanceRules.NormalizeTipoCarteira(dto.Tipo), SaldoInicial = dto.SaldoInicial, Ativo = dto.Ativo, DataCriacao = now, DataAtualizacao = now };
         db.Carteiras.Add(item); await db.SaveChangesAsync(ct);
         return ServiceResult<CarteirasResponseDto>.Created(item.ToDto());
     }
@@ -177,7 +179,7 @@ public sealed class CarteirasService(FafnirContext db) : ICarteirasService
         if (item is null) return ServiceResult<CarteirasResponseDto>.NotFound("Carteira nao encontrada.");
         var validation = await ValidateAsync(item.FkIdUsuario, dto.Nome, dto.Tipo, ct);
         if (validation is not null) return ServiceResult<CarteirasResponseDto>.BadRequest(validation);
-        item.Nome = dto.Nome.Trim(); item.Tipo = dto.Tipo.Trim(); item.SaldoInicial = dto.SaldoInicial; item.Ativo = dto.Ativo; item.DataAtualizacao = FinanceRules.Now();
+        item.Nome = dto.Nome.Trim(); item.Tipo = FinanceRules.NormalizeTipoCarteira(dto.Tipo); item.SaldoInicial = dto.SaldoInicial; item.Ativo = dto.Ativo; item.DataAtualizacao = FinanceRules.Now();
         await db.SaveChangesAsync(ct);
         return ServiceResult<CarteirasResponseDto>.Ok(item.ToDto());
     }
@@ -198,6 +200,7 @@ public sealed class CarteirasService(FafnirContext db) : ICarteirasService
         if (string.IsNullOrWhiteSpace(tipo)) return "Tipo da carteira e obrigatorio.";
         if (nome.Trim().Length > 120) return "Nome da carteira deve ter no maximo 120 caracteres.";
         if (tipo.Trim().Length > 30) return "Tipo da carteira deve ter no maximo 30 caracteres.";
+        if (!FinanceRules.IsTipoCarteira(FinanceRules.NormalizeTipoCarteira(tipo))) return "Tipo da carteira deve ser CONTA_CORRENTE, POUPANCA, DINHEIRO, CARTAO_CREDITO, INVESTIMENTO ou OUTRA.";
         if (!await db.Usuarios.AnyAsync(x => x.Id == usuarioId, ct)) return "Usuario informado nao existe.";
         return null;
     }
