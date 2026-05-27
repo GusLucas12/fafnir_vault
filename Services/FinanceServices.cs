@@ -364,14 +364,14 @@ public sealed class AssinaturasService(FafnirContext db, ITransacoesService tran
         return await transacoesService.CreateAsync(new TransacoesCreateDto(assinatura.FkIdUsuario, assinatura.FkIdCarteira, assinatura.FkIdCategoria, assinatura.Nome, "despesa", assinatura.Valor, null, new DateTime(ano, mes, dia), (short)mes, ano, assinatura.Observacao), ct);
     }
 
-    private async Task<string?> ValidateAsync(int usuarioId, int? categoriaId, int carteiraId, string nome, decimal valor, short dia, CancellationToken ct)
+    private async Task<string?> ValidateAsync(int usuarioId, int categoriaId, int carteiraId, string nome, decimal valor, short dia, CancellationToken ct)
     {
-        if (usuarioId <= 0 || carteiraId <= 0 || string.IsNullOrWhiteSpace(nome)) return "Usuario, carteira e nome sao obrigatorios.";
+        if (usuarioId <= 0 || categoriaId <= 0 || carteiraId <= 0 || string.IsNullOrWhiteSpace(nome)) return "Usuario, categoria, carteira e nome sao obrigatorios.";
         if (valor <= 0) return "Valor deve ser maior que zero.";
         if (dia is < 1 or > 31) return "DiaCobranca deve estar entre 1 e 31.";
         if (!await db.Usuarios.AnyAsync(x => x.Id == usuarioId, ct)) return "Usuario informado nao existe.";
         if (!await db.Carteiras.AnyAsync(x => x.Id == carteiraId && x.FkIdUsuario == usuarioId, ct)) return "Carteira informada nao existe para o usuario.";
-        if (categoriaId.HasValue && !await db.Categorias.AnyAsync(x => x.Id == categoriaId.Value && (x.FkIdUsuario == usuarioId || x.FkIdUsuario == null), ct)) return "Categoria informada nao existe para o usuario.";
+        if (!await db.Categorias.AnyAsync(x => x.Id == categoriaId && (x.FkIdUsuario == usuarioId || x.FkIdUsuario == null) && x.Tipo == "DESPESA", ct)) return "Categoria de despesa informada nao existe para o usuario.";
         return null;
     }
 }

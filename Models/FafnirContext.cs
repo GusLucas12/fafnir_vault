@@ -89,7 +89,6 @@ public partial class FafnirContext : DbContext
 
             entity.HasOne(d => d.FkIdCategoriaNavigation).WithMany(p => p.Assinaturas)
                 .HasForeignKey(d => d.FkIdCategoria)
-                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne(d => d.FkIdUsuarioNavigation).WithMany(p => p.Assinaturas).HasForeignKey(d => d.FkIdUsuario);

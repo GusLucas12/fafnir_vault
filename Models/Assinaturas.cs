@@ -12,7 +12,7 @@ public partial class Assinaturas
 
     public int FkIdUsuario { get; set; }
 
-    public int? FkIdCategoria { get; set; }
+    public int FkIdCategoria { get; set; }
 
     public int FkIdCarteira { get; set; }
 
@@ -36,7 +36,7 @@ public partial class Assinaturas
 
     public virtual Carteiras FkIdCarteiraNavigation { get; set; } = null!;
 
-    public virtual Categorias? FkIdCategoriaNavigation { get; set; }
+    public virtual Categorias FkIdCategoriaNavigation { get; set; } = null!;
 
     public virtual Usuarios FkIdUsuarioNavigation { get; set; } = null!;
 }
