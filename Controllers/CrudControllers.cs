@@ -1,6 +1,7 @@
 using fanfnir_back.DTOs;
 using fanfnir_back.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace fanfnir_back.Controllers;
 
@@ -14,7 +15,17 @@ public abstract class FafnirControllerBase : ControllerBase
         return StatusCode(result.StatusCode, new { message = result.Error });
     }
 
-    protected ObjectResult Unexpected(Exception ex) => StatusCode(StatusCodes.Status500InternalServerError, new { message = "Erro inesperado.", detail = ex.Message });
+    protected ObjectResult Unexpected(Exception ex)
+    {
+        if (ex is DbUpdateException)
+        {
+            return StatusCode(
+                StatusCodes.Status400BadRequest,
+                new { message = "Nao foi possivel salvar os dados. Verifique se os campos e relacionamentos informados sao validos." });
+        }
+
+        return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Erro inesperado ao processar a solicitacao." });
+    }
 }
 
 [Route("api/usuarios")]

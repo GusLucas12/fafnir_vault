@@ -163,8 +163,8 @@ public sealed class CarteirasService(FafnirContext db) : ICarteirasService
 
     public async Task<ServiceResult<CarteirasResponseDto>> CreateAsync(CarteirasCreateDto dto, CancellationToken ct)
     {
-        if (dto.FkIdUsuario <= 0 || string.IsNullOrWhiteSpace(dto.Nome) || string.IsNullOrWhiteSpace(dto.Tipo)) return ServiceResult<CarteirasResponseDto>.BadRequest("FkIdUsuario, Nome e Tipo sao obrigatorios.");
-        if (!await db.Usuarios.AnyAsync(x => x.Id == dto.FkIdUsuario, ct)) return ServiceResult<CarteirasResponseDto>.BadRequest("Usuario informado nao existe.");
+        var validation = await ValidateAsync(dto.FkIdUsuario, dto.Nome, dto.Tipo, ct);
+        if (validation is not null) return ServiceResult<CarteirasResponseDto>.BadRequest(validation);
         var now = FinanceRules.Now();
         var item = new Carteiras { FkIdUsuario = dto.FkIdUsuario, Nome = dto.Nome.Trim(), Tipo = dto.Tipo.Trim(), SaldoInicial = dto.SaldoInicial, Ativo = dto.Ativo, DataCriacao = now, DataAtualizacao = now };
         db.Carteiras.Add(item); await db.SaveChangesAsync(ct);
@@ -175,7 +175,8 @@ public sealed class CarteirasService(FafnirContext db) : ICarteirasService
     {
         var item = await db.Carteiras.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (item is null) return ServiceResult<CarteirasResponseDto>.NotFound("Carteira nao encontrada.");
-        if (string.IsNullOrWhiteSpace(dto.Nome) || string.IsNullOrWhiteSpace(dto.Tipo)) return ServiceResult<CarteirasResponseDto>.BadRequest("Nome e Tipo sao obrigatorios.");
+        var validation = await ValidateAsync(item.FkIdUsuario, dto.Nome, dto.Tipo, ct);
+        if (validation is not null) return ServiceResult<CarteirasResponseDto>.BadRequest(validation);
         item.Nome = dto.Nome.Trim(); item.Tipo = dto.Tipo.Trim(); item.SaldoInicial = dto.SaldoInicial; item.Ativo = dto.Ativo; item.DataAtualizacao = FinanceRules.Now();
         await db.SaveChangesAsync(ct);
         return ServiceResult<CarteirasResponseDto>.Ok(item.ToDto());
@@ -188,6 +189,17 @@ public sealed class CarteirasService(FafnirContext db) : ICarteirasService
         item.Ativo = false; item.DataAtualizacao = FinanceRules.Now();
         await db.SaveChangesAsync(ct);
         return ServiceResult<object>.NoContent();
+    }
+
+    private async Task<string?> ValidateAsync(int usuarioId, string nome, string tipo, CancellationToken ct)
+    {
+        if (usuarioId <= 0) return "Sessao invalida. Entre novamente antes de cadastrar uma carteira.";
+        if (string.IsNullOrWhiteSpace(nome)) return "Nome da carteira e obrigatorio.";
+        if (string.IsNullOrWhiteSpace(tipo)) return "Tipo da carteira e obrigatorio.";
+        if (nome.Trim().Length > 120) return "Nome da carteira deve ter no maximo 120 caracteres.";
+        if (tipo.Trim().Length > 30) return "Tipo da carteira deve ter no maximo 30 caracteres.";
+        if (!await db.Usuarios.AnyAsync(x => x.Id == usuarioId, ct)) return "Usuario informado nao existe.";
+        return null;
     }
 }
 
