@@ -50,6 +50,58 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<FafnirContext>();
+        db.Database.OpenConnection();
+        using (var cmd = db.Database.GetDbConnection().CreateCommand())
+        {
+            cmd.CommandText = "SELECT a.\"Id\", a.\"FkIdUsuario\", a.\"FkIdCategoria\", c.\"Nome\", a.\"Nome\", a.\"Valor\", a.\"Ativa\" FROM \"Assinaturas\" a LEFT JOIN \"Categorias\" c ON a.\"FkIdCategoria\" = c.\"Id\";";
+            using (var reader = cmd.ExecuteReader())
+            {
+                Console.WriteLine("=== ASSINATURAS + CATEGORIAS DATA ===");
+                while (reader.Read())
+                {
+                    Console.WriteLine($"ID: {reader.GetInt32(0)}, UsuarioId: {reader.GetInt32(1)}, CatId: {reader.GetInt32(2)}, CatNome: {(reader.IsDBNull(3) ? "NULL" : reader.GetString(3))}, Nome: {reader.GetString(4)}, Valor: {reader.GetDecimal(5)}, Ativa: {reader.GetBoolean(6)}");
+                }
+                Console.WriteLine("=====================================");
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"DB Query Error: {ex.Message}");
+    }
+}
+
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<FafnirContext>();
+        db.Database.OpenConnection();
+        using (var cmd = db.Database.GetDbConnection().CreateCommand())
+        {
+            cmd.CommandText = "SELECT \"Id\", \"FkIdUsuario\", \"Nome\", \"Valor\", \"Ativa\" FROM \"Assinaturas\";";
+            using (var reader = cmd.ExecuteReader())
+            {
+                Console.WriteLine("=== ASSINATURAS DATA ===");
+                while (reader.Read())
+                {
+                    Console.WriteLine($"ID: {reader.GetInt32(0)}, UsuarioId: {reader.GetInt32(1)}, Nome: {reader.GetString(2)}, Valor: {reader.GetDecimal(3)}, Ativa: {reader.GetBoolean(4)}");
+                }
+                Console.WriteLine("========================");
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"DB Query Error: {ex.Message}");
+    }
+}
+
 app.UseSwagger();
 app.UseSwaggerUI();
 

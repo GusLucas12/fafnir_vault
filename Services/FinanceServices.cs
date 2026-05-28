@@ -533,32 +533,65 @@ public sealed class DashboardService(FafnirContext db) : IDashboardService
     {
         var transacoes = db.Transacoes.AsNoTracking().Where(x => x.FkIdUsuario == usuarioId && x.MesReferencia == mes && x.AnoReferencia == ano);
         var totalReceitas = await transacoes.Where(x => x.Tipo == "RECEITA").SumAsync(x => x.Valor, ct);
-        var totalDespesas = await transacoes.Where(x => x.Tipo == "DESPESA").SumAsync(x => x.Valor, ct);
-        var assinaturasAtivas = await db.Assinaturas.AsNoTracking().Where(x => x.FkIdUsuario == usuarioId && x.Ativa).SumAsync(x => x.Valor, ct);
+        
+        // Fetch active subscriptions and calculate their total value
+        var assinaturasAtivasLista = await db.Assinaturas.AsNoTracking()
+            .Where(x => x.FkIdUsuario == usuarioId && x.Ativa)
+            .Select(x => new { x.FkIdCategoria, CategoriaNome = x.FkIdCategoriaNavigation.Nome, x.Valor })
+            .ToListAsync(ct);
+        var totalAssinaturas = assinaturasAtivasLista.Sum(x => x.Valor);
+
+        // Sum transaction despesas and active subscriptions
+        var totalDespesasTransacoes = await transacoes.Where(x => x.Tipo == "DESPESA").SumAsync(x => x.Valor, ct);
+        var totalDespesas = totalDespesasTransacoes + totalAssinaturas;
+
         var metasDoMes = await db.Metas.AsNoTracking().Where(x => x.FkIdUsuario == usuarioId && x.MesReferencia == mes && x.AnoReferencia == ano).ToListAsync(ct);
-        var gastosPorCategoria = await TransacoesService.TotaisCategoria(db, usuarioId, mes, ano, "despesa", ct);
+        
+        // Combine transaction expenses and subscriptions by category
+        var gastosPorCategoriaTransacoes = await TransacoesService.TotaisCategoria(db, usuarioId, mes, ano, "despesa", ct);
+        var gastosPorCategoriaCombined = gastosPorCategoriaTransacoes
+            .Select(x => new CategoriaTotalDto(x.FkIdCategoria, x.Categoria, x.Total))
+            .ToList();
+        
+        if (totalAssinaturas > 0)
+        {
+            gastosPorCategoriaCombined.Add(new CategoriaTotalDto(null, "Assinaturas", totalAssinaturas));
+        }
+
         var receitasPorCategoria = await TransacoesService.TotaisCategoria(db, usuarioId, mes, ano, "receita", ct);
         var metasAtivas = await db.Metas.AsNoTracking().Where(x => x.FkIdUsuario == usuarioId && x.Ativa).OrderBy(x => x.Id).Select(x => x.ToDto()).ToListAsync(ct);
+        
+        // Fetch budget limits and include active subscriptions in category spending totals
         var orcamentos = await db.OrcamentosMensais.AsNoTracking()
+            .Include(x => x.FkIdCategoriaNavigation)
             .Where(x => x.FkIdUsuario == usuarioId && x.MesReferencia == mes && x.AnoReferencia == ano)
-            .Select(x => new OrcamentoCategoriaDto(
-                x.FkIdCategoria,
-                x.FkIdCategoriaNavigation.Nome,
-                x.ValorLimite,
-                db.Transacoes.Where(t => t.FkIdUsuario == usuarioId && t.FkIdCategoria == x.FkIdCategoria && t.MesReferencia == mes && t.AnoReferencia == ano && t.Tipo == "DESPESA").Sum(t => t.Valor),
-                x.ValorLimite - db.Transacoes.Where(t => t.FkIdUsuario == usuarioId && t.FkIdCategoria == x.FkIdCategoria && t.MesReferencia == mes && t.AnoReferencia == ano && t.Tipo == "DESPESA").Sum(t => t.Valor)))
             .ToListAsync(ct);
+
+        var orcamentosResponse = new List<OrcamentoCategoriaDto>();
+        foreach (var orc in orcamentos)
+        {
+            var transSum = await db.Transacoes.Where(t => t.FkIdUsuario == usuarioId && t.FkIdCategoria == orc.FkIdCategoria && t.MesReferencia == mes && t.AnoReferencia == ano && t.Tipo == "DESPESA").SumAsync(t => t.Valor, ct);
+            var subSum = assinaturasAtivasLista.Where(s => s.FkIdCategoria == orc.FkIdCategoria).Sum(s => s.Valor);
+            var totalGasto = transSum + subSum;
+            orcamentosResponse.Add(new OrcamentoCategoriaDto(
+                orc.FkIdCategoria,
+                orc.FkIdCategoriaNavigation?.Nome ?? "Sem categoria",
+                orc.ValorLimite,
+                totalGasto,
+                orc.ValorLimite - totalGasto
+            ));
+        }
 
         return new DashboardMensalResponseDto(
             totalReceitas,
             totalDespesas,
-            totalReceitas - totalDespesas - assinaturasAtivas,
-            assinaturasAtivas,
+            totalReceitas - totalDespesas, // TotalDespesas already includes subscriptions now
+            totalAssinaturas,
             metasDoMes.Count,
             metasDoMes.Sum(x => x.ValorAtual),
-            gastosPorCategoria,
+            gastosPorCategoriaCombined,
             receitasPorCategoria,
-            orcamentos,
+            orcamentosResponse,
             metasAtivas);
     }
 }
