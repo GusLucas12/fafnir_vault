@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("fanfnir_back")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9812afb0a4357687f6141fcbc417cd1524858dea")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+201eaa80a712345ee786209b712a06bde6b28ada")]
 [assembly: System.Reflection.AssemblyProductAttribute("fanfnir_back")]
 [assembly: System.Reflection.AssemblyTitleAttribute("fanfnir_back")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
