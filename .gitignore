@@ -1,1 +1,34 @@
+# Environment files
 .env
+.env.*
+!.env.example
+
+# .NET build output
+bin/
+obj/
+publish/
+artifacts/
+
+# Test and coverage output
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Logs
+*.log
+logs/
+
+# Temporary files and folders
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.swp
+
+# Codex/generated scratch output
+.codex/
+.codex-temp/
+codex-temp/
+codex-output/
