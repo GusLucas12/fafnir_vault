@@ -37,6 +37,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<FafnirContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("FafnirConnection")));
 
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<IUsuariosService, UsuariosService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICarteirasService, CarteirasService>();
@@ -47,6 +48,8 @@ builder.Services.AddScoped<IOrcamentosMensaisService, OrcamentosMensaisService>(
 builder.Services.AddScoped<IMetasService, MetasService>();
 builder.Services.AddScoped<IAportesMetasService, AportesMetasService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IOpenFinanceProvider, PluggyProvider>();
+builder.Services.AddScoped<IOpenFinanceService, OpenFinanceService>();
 
 var app = builder.Build();
 

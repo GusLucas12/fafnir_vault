@@ -130,5 +130,61 @@ public static class TokenSigner
         return $"{payload64}.{signature64}";
     }
 
+    public static bool Verify(string? token, IConfiguration configuration, out int userId)
+    {
+        userId = 0;
+        if (string.IsNullOrWhiteSpace(token)) return false;
+
+        var parts = token.Split('.');
+        if (parts.Length != 2) return false;
+
+        var payload64 = parts[0];
+        var signature64 = parts[1];
+
+        // Validate signature
+        var secret = configuration["Auth:TokenSecret"] ?? "fafnir-vault-dev-secret-change-me";
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+        var expectedSignature = Base64Url(hmac.ComputeHash(Encoding.UTF8.GetBytes(payload64)));
+
+        if (!CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(signature64),
+                Encoding.UTF8.GetBytes(expectedSignature)))
+        {
+            return false;
+        }
+
+        // Decode payload
+        try
+        {
+            var padLen = (4 - (payload64.Length % 4)) % 4;
+            var base64 = payload64.Replace('-', '+').Replace('_', '/') + new string('=', padLen);
+            var payloadBytes = Convert.FromBase64String(base64);
+            var payloadJson = Encoding.UTF8.GetString(payloadBytes);
+            
+            using var doc = JsonDocument.Parse(payloadJson);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("sub", out var subProp) || !root.TryGetProperty("exp", out var expProp))
+            {
+                return false;
+            }
+
+            var subVal = subProp.GetInt32();
+            var expSec = expProp.GetInt64();
+            var expTime = DateTimeOffset.FromUnixTimeSeconds(expSec);
+
+            if (expTime < DateTimeOffset.UtcNow)
+            {
+                return false; // Token expired
+            }
+
+            userId = subVal;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static string Base64Url(byte[] data) => Convert.ToBase64String(data).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 }

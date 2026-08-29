@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,6 +30,12 @@ public partial class FafnirContext : DbContext
     public virtual DbSet<Transacoes> Transacoes { get; set; }
 
     public virtual DbSet<Usuarios> Usuarios { get; set; }
+
+    public virtual DbSet<OpenFinanceConnection> OpenFinanceConexoes { get; set; }
+
+    public virtual DbSet<BankAccount> ContasBancarias { get; set; }
+
+    public virtual DbSet<BankTransaction> TransacoesBancarias { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -259,6 +265,100 @@ public partial class FafnirContext : DbContext
             entity.Property(e => e.SenhaHash)
                 .HasMaxLength(500)
                 .HasComment("Hash da senha gerado pela aplicação; nunca persistir senha em texto puro.");
+        });
+
+        modelBuilder.Entity<OpenFinanceConnection>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("OpenFinanceConexoes_pkey");
+            entity.ToTable("OpenFinanceConexoes");
+
+            entity.HasIndex(e => e.ProvedorItemId, "IX_OpenFinanceConexoes_ProvedorItemId").IsUnique();
+            entity.HasIndex(e => e.FkIdUsuario, "IX_OpenFinanceConexoes_FkIdUsuario");
+
+            entity.Property(e => e.Provedor).HasMaxLength(50);
+            entity.Property(e => e.ProvedorItemId).HasMaxLength(100);
+            entity.Property(e => e.Status).HasMaxLength(50);
+            entity.Property(e => e.InstituicaoId).HasMaxLength(100);
+            entity.Property(e => e.InstituicaoNome).HasMaxLength(150);
+            entity.Property(e => e.DataCriacao).HasColumnType("timestamp without time zone");
+            entity.Property(e => e.DataAtualizacao).HasColumnType("timestamp without time zone");
+
+            entity.HasOne(d => d.FkIdUsuarioNavigation)
+                .WithMany()
+                .HasForeignKey(d => d.FkIdUsuario)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BankAccount>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("ContasBancarias_pkey");
+            entity.ToTable("ContasBancarias");
+
+            entity.HasIndex(e => new { e.Provedor, e.ProvedorContaId }, "UX_ContasBancarias_Provedor_ContaId").IsUnique();
+            entity.HasIndex(e => e.FkIdUsuario, "IX_ContasBancarias_FkIdUsuario");
+            entity.HasIndex(e => e.FkIdConexao, "IX_ContasBancarias_FkIdConexao");
+
+            entity.Property(e => e.Provedor).HasMaxLength(50);
+            entity.Property(e => e.ProvedorContaId).HasMaxLength(100);
+            entity.Property(e => e.InstituicaoId).HasMaxLength(100);
+            entity.Property(e => e.InstituicaoNome).HasMaxLength(150);
+            entity.Property(e => e.Tipo).HasMaxLength(50);
+            entity.Property(e => e.Nome).HasMaxLength(150);
+            entity.Property(e => e.Moeda).HasMaxLength(10);
+            entity.Property(e => e.SaldoAtual).HasPrecision(14, 2);
+            entity.Property(e => e.SaldoDisponivel).HasPrecision(14, 2);
+            entity.Property(e => e.Status).HasMaxLength(50);
+            entity.Property(e => e.UltimaSincronizacao).HasColumnType("timestamp without time zone");
+            entity.Property(e => e.DataCriacao).HasColumnType("timestamp without time zone");
+            entity.Property(e => e.DataAtualizacao).HasColumnType("timestamp without time zone");
+
+            entity.HasOne(d => d.FkIdUsuarioNavigation)
+                .WithMany()
+                .HasForeignKey(d => d.FkIdUsuario)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.FkIdConexaoNavigation)
+                .WithMany(p => p.BankAccounts)
+                .HasForeignKey(d => d.FkIdConexao)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BankTransaction>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("TransacoesBancarias_pkey");
+            entity.ToTable("TransacoesBancarias");
+
+            entity.HasIndex(e => new { e.Provedor, e.ProvedorTransacaoId, e.FkIdContaBancaria }, "UX_TransacoesBancarias_Provedor_Transacao_Conta").IsUnique();
+            entity.HasIndex(e => e.FkIdUsuario, "IX_TransacoesBancarias_FkIdUsuario");
+            entity.HasIndex(e => e.FkIdContaBancaria, "IX_TransacoesBancarias_FkIdContaBancaria");
+            entity.HasIndex(e => e.FkIdCategoria, "IX_TransacoesBancarias_FkIdCategoria");
+
+            entity.Property(e => e.Provedor).HasMaxLength(50);
+            entity.Property(e => e.ProvedorTransacaoId).HasMaxLength(100);
+            entity.Property(e => e.DataTransacao).HasColumnType("timestamp without time zone");
+            entity.Property(e => e.Valor).HasPrecision(14, 2);
+            entity.Property(e => e.Descricao).HasMaxLength(200);
+            entity.Property(e => e.EstabelecimentoNome).HasMaxLength(150);
+            entity.Property(e => e.Tipo).HasMaxLength(20);
+            entity.Property(e => e.Moeda).HasMaxLength(10);
+            entity.Property(e => e.Metadata).HasColumnType("text");
+            entity.Property(e => e.DataCriacao).HasColumnType("timestamp without time zone");
+            entity.Property(e => e.DataAtualizacao).HasColumnType("timestamp without time zone");
+
+            entity.HasOne(d => d.FkIdUsuarioNavigation)
+                .WithMany()
+                .HasForeignKey(d => d.FkIdUsuario)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.FkIdContaBancariaNavigation)
+                .WithMany(p => p.BankTransactions)
+                .HasForeignKey(d => d.FkIdContaBancaria)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.FkIdCategoriaNavigation)
+                .WithMany()
+                .HasForeignKey(d => d.FkIdCategoria)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         OnModelCreatingPartial(modelBuilder);
