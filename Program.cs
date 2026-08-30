@@ -1,7 +1,18 @@
+using Npgsql;
 using fanfnir_back.Models;
 using fanfnir_back.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+
+using (var conn = new NpgsqlConnection("Host=163.176.151.15;Port=5432;Database=pro_fafnir;Username=srv;Password=GusLucas12@RA"))
+{
+    conn.Open();
+    using (var cmd = new NpgsqlCommand("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'CK_Metas_TipoMeta_Valido';", conn))
+    {
+        var result = cmd.ExecuteScalar();
+        Console.WriteLine($"[DB_CHECK] CK_Metas_TipoMeta_Valido definition: {result}");
+    }
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
