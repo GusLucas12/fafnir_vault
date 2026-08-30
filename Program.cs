@@ -7,10 +7,15 @@ using Microsoft.EntityFrameworkCore;
 using (var conn = new NpgsqlConnection("Host=163.176.151.15;Port=5432;Database=pro_fafnir;Username=srv;Password=GusLucas12@RA"))
 {
     conn.Open();
-    using (var cmd = new NpgsqlCommand("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'CK_Metas_TipoMeta_Valido';", conn))
+    using (var cmd = new NpgsqlCommand("SELECT DISTINCT \"TipoMeta\" FROM \"Metas\";", conn))
     {
-        var result = cmd.ExecuteScalar();
-        Console.WriteLine($"[DB_CHECK] CK_Metas_TipoMeta_Valido definition: {result}");
+        using (var reader = cmd.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                Console.WriteLine($"[DB_CHECK] Distinct TipoMeta: {reader.GetValue(0)}");
+            }
+        }
     }
 }
 
