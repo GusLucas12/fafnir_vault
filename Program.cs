@@ -1,23 +1,7 @@
-using Npgsql;
 using fanfnir_back.Models;
 using fanfnir_back.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-
-using (var conn = new NpgsqlConnection("Host=163.176.151.15;Port=5432;Database=pro_fafnir;Username=srv;Password=GusLucas12@RA"))
-{
-    conn.Open();
-    using (var cmd = new NpgsqlCommand("SELECT DISTINCT \"TipoMeta\" FROM \"Metas\";", conn))
-    {
-        using (var reader = cmd.ExecuteReader())
-        {
-            while (reader.Read())
-            {
-                Console.WriteLine($"[DB_CHECK] Distinct TipoMeta: {reader.GetValue(0)}");
-            }
-        }
-    }
-}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -57,6 +41,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<IUsuariosService, UsuariosService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICarteirasService, CarteirasService>();
+builder.Services.AddScoped<ICdiService, CdiService>();
 builder.Services.AddScoped<ICategoriasService, CategoriasService>();
 builder.Services.AddScoped<ITransacoesService, TransacoesService>();
 builder.Services.AddScoped<IAssinaturasService, AssinaturasService>();

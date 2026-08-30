@@ -20,6 +20,14 @@ public partial class Carteiras
 
     public bool Ativo { get; set; }
 
+    public bool Rende { get; set; } = false;
+
+    public string? TipoRendimento { get; set; }
+
+    public decimal? TaxaRendimento { get; set; }
+
+    public DateTime? UltimoProcessamentoRendimento { get; set; }
+
     public DateTime DataCriacao { get; set; }
 
     public DateTime DataAtualizacao { get; set; }

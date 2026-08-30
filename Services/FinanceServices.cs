@@ -20,6 +20,7 @@ public interface ICarteirasService
     Task<ServiceResult<CarteirasResponseDto>> CreateAsync(CarteirasCreateDto dto, CancellationToken ct);
     Task<ServiceResult<CarteirasResponseDto>> UpdateAsync(int id, CarteirasUpdateDto dto, CancellationToken ct);
     Task<ServiceResult<object>> DeleteAsync(int id, CancellationToken ct);
+    Task ProcessarRendimentoCofrinhosAsync(CancellationToken ct);
 }
 
 public interface ICategoriasService
@@ -90,7 +91,7 @@ public interface IDashboardService
 internal static class FinanceRules
 {
     public static bool IsTipoTransacao(string tipo) => NormalizeTipoDb(tipo) is "RECEITA" or "DESPESA";
-    public static bool IsTipoCarteira(string tipo) => tipo is "CONTA_CORRENTE" or "POUPANCA" or "DINHEIRO" or "CARTAO_CREDITO" or "INVESTIMENTO" or "OUTRA";
+    public static bool IsTipoCarteira(string tipo) => tipo is "CONTA_CORRENTE" or "POUPANCA" or "DINHEIRO" or "CARTAO_CREDITO" or "INVESTIMENTO" or "COFRINHO" or "OUTRA";
     public static bool IsTipoMeta(string tipo) => tipo is "economia_mensal" or "compra" or "reserva_emergencia" or "viagem" or "investimento" or "quitar_divida";
     public static bool IsValidMonth(int mes) => mes is >= 1 and <= 12;
     public static bool IsValidYear(int ano) => ano is >= 1900 and <= 9999;
@@ -103,7 +104,7 @@ internal static class FinanceRules
 internal static class Maps
 {
     public static UsuariosResponseDto ToDto(this Usuarios e) => new(e.Id, e.Nome, e.Email, e.DataCriacao, e.DataAtualizacao);
-    public static CarteirasResponseDto ToDto(this Carteiras e) => new(e.Id, e.FkIdUsuario, e.Nome, e.Tipo, e.SaldoInicial, e.Ativo, e.DataCriacao, e.DataAtualizacao);
+    public static CarteirasResponseDto ToDto(this Carteiras e) => new(e.Id, e.FkIdUsuario, e.Nome, e.Tipo, e.SaldoInicial, e.Ativo, e.Rende, e.TipoRendimento, e.TaxaRendimento, e.UltimoProcessamentoRendimento, e.DataCriacao, e.DataAtualizacao);
     public static CategoriasResponseDto ToDto(this Categorias e) => new(e.Id, e.FkIdUsuario, e.Nome, FinanceRules.NormalizeTipoApi(e.Tipo), e.Cor, e.Icone, e.Ativo, e.DataCriacao, e.DataAtualizacao);
     public static TransacoesResponseDto ToDto(this Transacoes e) => new(e.Id, e.FkIdUsuario, e.FkIdCarteira, e.FkIdCategoria, e.Descricao, FinanceRules.NormalizeTipoApi(e.Tipo), e.Valor, e.FormaPagamento, e.DataTransacao, e.MesReferencia, e.AnoReferencia, e.Observacao, e.DataCriacao, e.DataAtualizacao);
     public static AssinaturasResponseDto ToDto(this Assinaturas e) => new(e.Id, e.FkIdUsuario, e.FkIdCategoria, e.FkIdCarteira, e.Nome, e.Valor, e.DiaCobranca, e.Ativa, e.DataInicio, e.DataFim, e.Observacao, e.DataCriacao, e.DataAtualizacao);
@@ -179,17 +180,41 @@ public sealed class UsuariosService(FafnirContext db) : IUsuariosService
     }
 }
 
-public sealed class CarteirasService(FafnirContext db) : ICarteirasService
+public sealed class CarteirasService(FafnirContext db, ICdiService cdiService) : ICarteirasService
 {
-    public async Task<IReadOnlyList<CarteirasResponseDto>> GetAllAsync(CancellationToken ct) => await db.Carteiras.AsNoTracking().OrderBy(x => x.Id).Select(x => x.ToDto()).ToListAsync(ct);
-    public async Task<ServiceResult<CarteirasResponseDto>> GetByIdAsync(int id, CancellationToken ct) => (await db.Carteiras.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct)) is { } item ? ServiceResult<CarteirasResponseDto>.Ok(item.ToDto()) : ServiceResult<CarteirasResponseDto>.NotFound("Carteira nao encontrada.");
+    public async Task<IReadOnlyList<CarteirasResponseDto>> GetAllAsync(CancellationToken ct)
+    {
+        await ProcessarRendimentoCofrinhosAsync(ct);
+        return await db.Carteiras.AsNoTracking().OrderBy(x => x.Id).Select(x => x.ToDto()).ToListAsync(ct);
+    }
+
+    public async Task<ServiceResult<CarteirasResponseDto>> GetByIdAsync(int id, CancellationToken ct)
+    {
+        await ProcessarRendimentoCofrinhosAsync(ct);
+        var item = await db.Carteiras.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+        return item is { } ? ServiceResult<CarteirasResponseDto>.Ok(item.ToDto()) : ServiceResult<CarteirasResponseDto>.NotFound("Carteira nao encontrada.");
+    }
 
     public async Task<ServiceResult<CarteirasResponseDto>> CreateAsync(CarteirasCreateDto dto, CancellationToken ct)
     {
         var validation = await ValidateAsync(dto.FkIdUsuario, dto.Nome, dto.Tipo, ct);
         if (validation is not null) return ServiceResult<CarteirasResponseDto>.BadRequest(validation);
         var now = FinanceRules.Now();
-        var item = new Carteiras { FkIdUsuario = dto.FkIdUsuario, Nome = dto.Nome.Trim(), Tipo = FinanceRules.NormalizeTipoCarteira(dto.Tipo), SaldoInicial = dto.SaldoInicial, Ativo = dto.Ativo, DataCriacao = now, DataAtualizacao = now };
+        var isCofrinho = FinanceRules.NormalizeTipoCarteira(dto.Tipo) == "COFRINHO";
+        var item = new Carteiras
+        {
+            FkIdUsuario = dto.FkIdUsuario,
+            Nome = dto.Nome.Trim(),
+            Tipo = FinanceRules.NormalizeTipoCarteira(dto.Tipo),
+            SaldoInicial = dto.SaldoInicial,
+            Ativo = dto.Ativo,
+            Rende = isCofrinho && dto.Rende,
+            TipoRendimento = isCofrinho && dto.Rende ? dto.TipoRendimento : null,
+            TaxaRendimento = isCofrinho && dto.Rende ? dto.TaxaRendimento : null,
+            UltimoProcessamentoRendimento = isCofrinho && dto.Rende ? DateTime.Today : null,
+            DataCriacao = now,
+            DataAtualizacao = now
+        };
         db.Carteiras.Add(item); await db.SaveChangesAsync(ct);
         return ServiceResult<CarteirasResponseDto>.Created(item.ToDto());
     }
@@ -200,7 +225,28 @@ public sealed class CarteirasService(FafnirContext db) : ICarteirasService
         if (item is null) return ServiceResult<CarteirasResponseDto>.NotFound("Carteira nao encontrada.");
         var validation = await ValidateAsync(item.FkIdUsuario, dto.Nome, dto.Tipo, ct);
         if (validation is not null) return ServiceResult<CarteirasResponseDto>.BadRequest(validation);
-        item.Nome = dto.Nome.Trim(); item.Tipo = FinanceRules.NormalizeTipoCarteira(dto.Tipo); item.SaldoInicial = dto.SaldoInicial; item.Ativo = dto.Ativo; item.DataAtualizacao = FinanceRules.Now();
+
+        var isCofrinho = FinanceRules.NormalizeTipoCarteira(dto.Tipo) == "COFRINHO";
+        var newRende = isCofrinho && dto.Rende;
+
+        if (newRende && !item.Rende)
+        {
+            item.UltimoProcessamentoRendimento = DateTime.Today;
+        }
+        else if (!newRende)
+        {
+            item.UltimoProcessamentoRendimento = null;
+        }
+
+        item.Nome = dto.Nome.Trim();
+        item.Tipo = FinanceRules.NormalizeTipoCarteira(dto.Tipo);
+        item.SaldoInicial = dto.SaldoInicial;
+        item.Ativo = dto.Ativo;
+        item.Rende = newRende;
+        item.TipoRendimento = newRende ? dto.TipoRendimento : null;
+        item.TaxaRendimento = newRende ? dto.TaxaRendimento : null;
+        item.DataAtualizacao = FinanceRules.Now();
+
         await db.SaveChangesAsync(ct);
         return ServiceResult<CarteirasResponseDto>.Ok(item.ToDto());
     }
@@ -214,6 +260,69 @@ public sealed class CarteirasService(FafnirContext db) : ICarteirasService
         return ServiceResult<object>.NoContent();
     }
 
+    public async Task ProcessarRendimentoCofrinhosAsync(CancellationToken ct)
+    {
+        var now = DateTime.Now;
+        var today = DateTime.Today;
+        var endDate = today.AddDays(-1); // Process up to yesterday
+
+        var cofrinhos = await db.Carteiras
+            .Where(c => c.Ativo && c.Tipo == "COFRINHO" && c.Rende)
+            .ToListAsync(ct);
+
+        if (cofrinhos.Count == 0) return;
+
+        var cdiRate = await cdiService.GetLatestDailyCdiRateAsync();
+        bool hasChanges = false;
+
+        foreach (var carteira in cofrinhos)
+        {
+            var startDate = carteira.UltimoProcessamentoRendimento?.Date ?? carteira.DataCriacao.Date;
+            if (startDate >= endDate) continue;
+
+            for (var date = startDate.AddDays(1); date <= endDate; date = date.AddDays(1))
+            {
+                // Only process business days (Monday to Friday)
+                if (date.DayOfWeek != DayOfWeek.Saturday && date.DayOfWeek != DayOfWeek.Sunday)
+                {
+                    decimal taxaDiaria = (cdiRate / 100) * ((carteira.TaxaRendimento ?? 100) / 100);
+                    decimal rendimento = carteira.SaldoInicial * taxaDiaria;
+
+                    if (rendimento >= 0.01m)
+                    {
+                        var transaction = new Transacoes
+                        {
+                            FkIdUsuario = carteira.FkIdUsuario,
+                            FkIdCarteira = carteira.Id,
+                            FkIdCategoria = null,
+                            Descricao = $"Rendimento CDI ({(carteira.TaxaRendimento ?? 100):0}%)",
+                            Tipo = "RECEITA",
+                            Valor = Math.Round(rendimento, 2),
+                            FormaPagamento = "OUTRO",
+                            DataTransacao = date,
+                            MesReferencia = (short)date.Month,
+                            AnoReferencia = date.Year,
+                            Observacao = $"Rendimento automático calculado para o dia {date:dd/MM/yyyy}.",
+                            DataCriacao = now,
+                            DataAtualizacao = now
+                        };
+                        db.Transacoes.Add(transaction);
+                        carteira.SaldoInicial += transaction.Valor;
+                        hasChanges = true;
+                    }
+                }
+                carteira.UltimoProcessamentoRendimento = date;
+                carteira.DataAtualizacao = now;
+                hasChanges = true;
+            }
+        }
+
+        if (hasChanges)
+        {
+            await db.SaveChangesAsync(ct);
+        }
+    }
+
     private async Task<string?> ValidateAsync(int usuarioId, string nome, string tipo, CancellationToken ct)
     {
         if (usuarioId <= 0) return "Sessao invalida. Entre novamente antes de cadastrar uma carteira.";
@@ -221,7 +330,7 @@ public sealed class CarteirasService(FafnirContext db) : ICarteirasService
         if (string.IsNullOrWhiteSpace(tipo)) return "Tipo da carteira e obrigatorio.";
         if (nome.Trim().Length > 120) return "Nome da carteira deve ter no maximo 120 caracteres.";
         if (tipo.Trim().Length > 30) return "Tipo da carteira deve ter no maximo 30 caracteres.";
-        if (!FinanceRules.IsTipoCarteira(FinanceRules.NormalizeTipoCarteira(tipo))) return "Tipo da carteira deve ser CONTA_CORRENTE, POUPANCA, DINHEIRO, CARTAO_CREDITO, INVESTIMENTO ou OUTRA.";
+        if (!FinanceRules.IsTipoCarteira(FinanceRules.NormalizeTipoCarteira(tipo))) return "Tipo da carteira deve ser CONTA_CORRENTE, POUPANCA, DINHEIRO, CARTAO_CREDITO, INVESTIMENTO, COFRINHO ou OUTRA.";
         if (!await db.Usuarios.AnyAsync(x => x.Id == usuarioId, ct)) return "Usuario informado nao existe.";
         return null;
     }

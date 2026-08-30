@@ -7,9 +7,9 @@ public record AuthRegisterDto(string Nome, string Email, string Senha);
 public record AuthLoginDto(string Email, string Senha);
 public record AuthResponseDto(int Id, string Nome, string Email, string Token, DateTime ExpiraEm);
 
-public record CarteirasCreateDto(int FkIdUsuario, string Nome, string Tipo, decimal SaldoInicial, bool Ativo = true);
-public record CarteirasUpdateDto(string Nome, string Tipo, decimal SaldoInicial, bool Ativo);
-public record CarteirasResponseDto(int Id, int FkIdUsuario, string Nome, string Tipo, decimal SaldoInicial, bool Ativo, DateTime DataCriacao, DateTime DataAtualizacao);
+public record CarteirasCreateDto(int FkIdUsuario, string Nome, string Tipo, decimal SaldoInicial, bool Ativo = true, bool Rende = false, string? TipoRendimento = null, decimal? TaxaRendimento = null);
+public record CarteirasUpdateDto(string Nome, string Tipo, decimal SaldoInicial, bool Ativo, bool Rende, string? TipoRendimento, decimal? TaxaRendimento);
+public record CarteirasResponseDto(int Id, int FkIdUsuario, string Nome, string Tipo, decimal SaldoInicial, bool Ativo, bool Rende, string? TipoRendimento, decimal? TaxaRendimento, DateTime? UltimoProcessamentoRendimento, DateTime DataCriacao, DateTime DataAtualizacao);
 
 public record CategoriasCreateDto(int FkIdUsuario, string Nome, string Tipo, string? Cor, string? Icone, bool Ativo = true);
 public record CategoriasUpdateDto(string Nome, string Tipo, string? Cor, string? Icone, bool Ativo);
