@@ -120,6 +120,8 @@ public partial class FafnirContext : DbContext
                 .HasPrecision(14, 2)
                 .HasDefaultValueSql("0.00");
             entity.Property(e => e.Tipo).HasMaxLength(30);
+            entity.Property(e => e.UltimoProcessamentoRendimento)
+                .HasColumnType("timestamp without time zone");
 
             entity.HasOne(d => d.FkIdUsuarioNavigation).WithMany(p => p.Carteiras).HasForeignKey(d => d.FkIdUsuario);
         });

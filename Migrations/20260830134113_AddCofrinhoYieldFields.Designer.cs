@@ -12,7 +12,7 @@ using fanfnir_back.Models;
 namespace fanfnir_back.Migrations
 {
     [DbContext(typeof(FafnirContext))]
-    [Migration("20260830130154_AddCofrinhoYieldFields")]
+    [Migration("20260830134113_AddCofrinhoYieldFields")]
     partial class AddCofrinhoYieldFields
     {
         /// <inheritdoc />
@@ -361,7 +361,7 @@ namespace fanfnir_back.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UltimoProcessamentoRendimento")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp without time zone");
 
                     b.HasKey("Id")
                         .HasName("Carteiras_pkey");

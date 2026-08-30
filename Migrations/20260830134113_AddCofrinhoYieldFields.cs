@@ -33,7 +33,7 @@ namespace fanfnir_back.Migrations
             migrationBuilder.AddColumn<DateTime>(
                 name: "UltimoProcessamentoRendimento",
                 table: "Carteiras",
-                type: "timestamp with time zone",
+                type: "timestamp without time zone",
                 nullable: true);
         }
 

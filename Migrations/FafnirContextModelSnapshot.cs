@@ -358,7 +358,7 @@ namespace fanfnir_back.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UltimoProcessamentoRendimento")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp without time zone");
 
                     b.HasKey("Id")
                         .HasName("Carteiras_pkey");
