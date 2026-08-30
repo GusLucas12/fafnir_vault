@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -35,6 +35,9 @@ namespace fanfnir_back.Migrations
                 table: "Carteiras",
                 type: "timestamp without time zone",
                 nullable: true);
+
+            migrationBuilder.Sql("ALTER TABLE \"Carteiras\" DROP CONSTRAINT IF EXISTS \"CK_Carteiras_Tipo_Valido\";");
+            migrationBuilder.Sql("ALTER TABLE \"Carteiras\" ADD CONSTRAINT \"CK_Carteiras_Tipo_Valido\" CHECK (\"Tipo\" IN ('CONTA_CORRENTE', 'POUPANCA', 'DINHEIRO', 'CARTAO_CREDITO', 'INVESTIMENTO', 'COFRINHO', 'OUTRA'));");
         }
 
         /// <inheritdoc />
@@ -55,6 +58,9 @@ namespace fanfnir_back.Migrations
             migrationBuilder.DropColumn(
                 name: "UltimoProcessamentoRendimento",
                 table: "Carteiras");
+
+            migrationBuilder.Sql("ALTER TABLE \"Carteiras\" DROP CONSTRAINT IF EXISTS \"CK_Carteiras_Tipo_Valido\";");
+            migrationBuilder.Sql("ALTER TABLE \"Carteiras\" ADD CONSTRAINT \"CK_Carteiras_Tipo_Valido\" CHECK (\"Tipo\" IN ('CONTA_CORRENTE', 'POUPANCA', 'DINHEIRO', 'CARTAO_CREDITO', 'INVESTIMENTO', 'OUTRA'));");
         }
     }
 }
