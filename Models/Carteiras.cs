@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace fanfnir_back.Models;
@@ -29,8 +29,6 @@ public partial class Carteiras
     public virtual ICollection<Assinaturas> Assinaturas { get; set; } = new List<Assinaturas>();
 
     public virtual Usuarios FkIdUsuarioNavigation { get; set; } = null!;
-
-    public virtual ICollection<Metas> Metas { get; set; } = new List<Metas>();
 
     public virtual ICollection<Transacoes> Transacoes { get; set; } = new List<Transacoes>();
 }

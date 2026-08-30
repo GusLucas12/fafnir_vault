@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace fanfnir_back.Models;
@@ -11,8 +11,6 @@ public partial class Metas
     public int Id { get; set; }
 
     public int FkIdUsuario { get; set; }
-
-    public int FkIdCarteira { get; set; }
 
     public string Nome { get; set; } = null!;
 
@@ -41,8 +39,6 @@ public partial class Metas
     public DateTime DataAtualizacao { get; set; }
 
     public virtual ICollection<AportesMetas> AportesMetas { get; set; } = new List<AportesMetas>();
-
-    public virtual Carteiras FkIdCarteiraNavigation { get; set; } = null!;
 
     public virtual Usuarios FkIdUsuarioNavigation { get; set; } = null!;
 }

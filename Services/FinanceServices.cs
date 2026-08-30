@@ -108,7 +108,26 @@ internal static class Maps
     public static TransacoesResponseDto ToDto(this Transacoes e) => new(e.Id, e.FkIdUsuario, e.FkIdCarteira, e.FkIdCategoria, e.Descricao, FinanceRules.NormalizeTipoApi(e.Tipo), e.Valor, e.FormaPagamento, e.DataTransacao, e.MesReferencia, e.AnoReferencia, e.Observacao, e.DataCriacao, e.DataAtualizacao);
     public static AssinaturasResponseDto ToDto(this Assinaturas e) => new(e.Id, e.FkIdUsuario, e.FkIdCategoria, e.FkIdCarteira, e.Nome, e.Valor, e.DiaCobranca, e.Ativa, e.DataInicio, e.DataFim, e.Observacao, e.DataCriacao, e.DataAtualizacao);
     public static OrcamentosMensaisResponseDto ToDto(this OrcamentosMensais e) => new(e.Id, e.FkIdUsuario, e.FkIdCategoria, e.MesReferencia, e.AnoReferencia, e.ValorLimite, e.DataCriacao, e.DataAtualizacao);
-    public static MetasResponseDto ToDto(this Metas e) => new(e.Id, e.FkIdUsuario, e.FkIdCarteira, e.Nome, e.Descricao, e.TipoMeta, e.ValorAlvo, e.ValorAtual, e.MesReferencia, e.AnoReferencia, e.DataInicio, e.DataFim, e.Ativa, e.Concluida, e.DataCriacao, e.DataAtualizacao);
+    public static MetasResponseDto ToDto(this Metas e)
+    {
+        decimal? valorMensalNecessario = null;
+        if (e.DataFim.HasValue)
+        {
+            var restante = e.ValorAlvo - e.ValorAtual;
+            if (restante <= 0)
+            {
+                valorMensalNecessario = 0;
+            }
+            else
+            {
+                var now = DateTime.Today;
+                int meses = ((e.DataFim.Value.Year - now.Year) * 12) + e.DataFim.Value.Month - now.Month + 1;
+                if (meses <= 0) meses = 1;
+                valorMensalNecessario = Math.Round(restante / meses, 2);
+            }
+        }
+        return new MetasResponseDto(e.Id, e.FkIdUsuario, e.Nome, e.Descricao, e.TipoMeta, e.ValorAlvo, e.ValorAtual, e.MesReferencia, e.AnoReferencia, e.DataInicio, e.DataFim, e.Ativa, e.Concluida, e.DataCriacao, e.DataAtualizacao, valorMensalNecessario);
+    }
     public static AportesMetasResponseDto ToDto(this AportesMetas e) => new(e.Id, e.FkIdMeta, e.FkIdUsuario, e.FkIdCarteira, e.Valor, e.DataAporte, e.Observacao, e.DataCriacao, e.DataAtualizacao);
 }
 
@@ -429,11 +448,11 @@ public sealed class MetasService(FafnirContext db) : IMetasService
 
     public async Task<ServiceResult<MetasResponseDto>> CreateAsync(MetasCreateDto dto, CancellationToken ct)
     {
-        var validation = await ValidateAsync(dto.FkIdUsuario, dto.FkIdCarteira, dto.Nome, dto.TipoMeta, dto.ValorAlvo, dto.MesReferencia, dto.AnoReferencia, ct);
+        var validation = await ValidateAsync(dto.FkIdUsuario, dto.Nome, dto.TipoMeta, dto.ValorAlvo, dto.MesReferencia, dto.AnoReferencia, ct);
         if (validation is not null) return ServiceResult<MetasResponseDto>.BadRequest(validation);
         var now = FinanceRules.Now();
         var valorAtual = dto.ValorAtual ?? 0;
-        var item = new Metas { FkIdUsuario = dto.FkIdUsuario, FkIdCarteira = dto.FkIdCarteira, Nome = dto.Nome.Trim(), Descricao = dto.Descricao, TipoMeta = dto.TipoMeta, ValorAlvo = dto.ValorAlvo, ValorAtual = valorAtual, MesReferencia = dto.MesReferencia, AnoReferencia = dto.AnoReferencia, DataInicio = dto.DataInicio, DataFim = dto.DataFim, Ativa = dto.Ativa, Concluida = valorAtual >= dto.ValorAlvo, DataCriacao = now, DataAtualizacao = now };
+        var item = new Metas { FkIdUsuario = dto.FkIdUsuario, Nome = dto.Nome.Trim(), Descricao = dto.Descricao, TipoMeta = dto.TipoMeta, ValorAlvo = dto.ValorAlvo, ValorAtual = valorAtual, MesReferencia = dto.MesReferencia, AnoReferencia = dto.AnoReferencia, DataInicio = dto.DataInicio, DataFim = dto.DataFim, Ativa = dto.Ativa, Concluida = valorAtual >= dto.ValorAlvo, DataCriacao = now, DataAtualizacao = now };
         db.Metas.Add(item); await db.SaveChangesAsync(ct);
         return ServiceResult<MetasResponseDto>.Created(item.ToDto());
     }
@@ -442,9 +461,42 @@ public sealed class MetasService(FafnirContext db) : IMetasService
     {
         var item = await db.Metas.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (item is null) return ServiceResult<MetasResponseDto>.NotFound("Meta nao encontrada.");
-        var validation = await ValidateAsync(item.FkIdUsuario, dto.FkIdCarteira, dto.Nome, dto.TipoMeta, dto.ValorAlvo, dto.MesReferencia, dto.AnoReferencia, ct);
+        var validation = await ValidateAsync(item.FkIdUsuario, dto.Nome, dto.TipoMeta, dto.ValorAlvo, dto.MesReferencia, dto.AnoReferencia, ct);
         if (validation is not null) return ServiceResult<MetasResponseDto>.BadRequest(validation);
-        item.FkIdCarteira = dto.FkIdCarteira; item.Nome = dto.Nome.Trim(); item.Descricao = dto.Descricao; item.TipoMeta = dto.TipoMeta; item.ValorAlvo = dto.ValorAlvo; item.ValorAtual = dto.ValorAtual; item.MesReferencia = dto.MesReferencia; item.AnoReferencia = dto.AnoReferencia; item.DataInicio = dto.DataInicio; item.DataFim = dto.DataFim; item.Ativa = dto.Ativa; item.Concluida = dto.ValorAtual >= dto.ValorAlvo; item.DataAtualizacao = FinanceRules.Now();
+        
+        var oldValor = item.ValorAtual;
+        var diff = dto.ValorAtual - oldValor;
+        var now = FinanceRules.Now();
+
+        item.Nome = dto.Nome.Trim(); 
+        item.Descricao = dto.Descricao; 
+        item.TipoMeta = dto.TipoMeta; 
+        item.ValorAlvo = dto.ValorAlvo; 
+        item.ValorAtual = dto.ValorAtual; 
+        item.MesReferencia = dto.MesReferencia; 
+        item.AnoReferencia = dto.AnoReferencia; 
+        item.DataInicio = dto.DataInicio; 
+        item.DataFim = dto.DataFim; 
+        item.Ativa = dto.Ativa; 
+        item.Concluida = dto.ValorAtual >= dto.ValorAlvo; 
+        item.DataAtualizacao = now;
+
+        if (diff != 0)
+        {
+            var aporte = new AportesMetas
+            {
+                FkIdMeta = item.Id,
+                FkIdUsuario = item.FkIdUsuario,
+                FkIdCarteira = null, // Manual edit doesn't require a wallet
+                Valor = diff,
+                DataAporte = now,
+                Observacao = "Ajuste manual de progresso",
+                DataCriacao = now,
+                DataAtualizacao = now
+            };
+            db.AportesMetas.Add(aporte);
+        }
+
         await db.SaveChangesAsync(ct);
         return ServiceResult<MetasResponseDto>.Ok(item.ToDto());
     }
@@ -460,15 +512,14 @@ public sealed class MetasService(FafnirContext db) : IMetasService
     public async Task<IReadOnlyList<MetasResponseDto>> GetAtivasAsync(int usuarioId, CancellationToken ct) => await db.Metas.AsNoTracking().Where(x => x.FkIdUsuario == usuarioId && x.Ativa).OrderBy(x => x.Id).Select(x => x.ToDto()).ToListAsync(ct);
     public async Task<IReadOnlyList<MetasResponseDto>> GetMensaisAsync(int usuarioId, int mes, int ano, CancellationToken ct) => await db.Metas.AsNoTracking().Where(x => x.FkIdUsuario == usuarioId && x.MesReferencia == mes && x.AnoReferencia == ano).OrderBy(x => x.Id).Select(x => x.ToDto()).ToListAsync(ct);
 
-    private async Task<string?> ValidateAsync(int usuarioId, int carteiraId, string nome, string tipoMeta, decimal valorAlvo, short? mes, int? ano, CancellationToken ct)
+    private async Task<string?> ValidateAsync(int usuarioId, string nome, string tipoMeta, decimal valorAlvo, short? mes, int? ano, CancellationToken ct)
     {
-        if (usuarioId <= 0 || carteiraId <= 0 || string.IsNullOrWhiteSpace(nome)) return "Usuario, carteira e nome sao obrigatorios.";
+        if (usuarioId <= 0 || string.IsNullOrWhiteSpace(nome)) return "Usuario e nome sao obrigatorios.";
         if (valorAlvo <= 0) return "ValorAlvo deve ser maior que zero.";
         if (!FinanceRules.IsTipoMeta(tipoMeta)) return "TipoMeta invalido.";
         if (mes.HasValue && !FinanceRules.IsValidMonth(mes.Value)) return "MesReferencia invalido.";
         if (ano.HasValue && !FinanceRules.IsValidYear(ano.Value)) return "AnoReferencia invalido.";
         if (!await db.Usuarios.AnyAsync(x => x.Id == usuarioId, ct)) return "Usuario informado nao existe.";
-        if (!await db.Carteiras.AnyAsync(x => x.Id == carteiraId && x.FkIdUsuario == usuarioId, ct)) return "Carteira informada nao existe para o usuario.";
         return null;
     }
 }
@@ -481,8 +532,15 @@ public sealed class AportesMetasService(FafnirContext db) : IAportesMetasService
     public async Task<ServiceResult<AportesMetasResponseDto>> CreateAsync(AportesMetasCreateDto dto, CancellationToken ct)
     {
         var meta = await db.Metas.FirstOrDefaultAsync(x => x.Id == dto.FkIdMeta && x.FkIdUsuario == dto.FkIdUsuario, ct);
-        var carteira = await db.Carteiras.FirstOrDefaultAsync(x => x.Id == dto.FkIdCarteira && x.FkIdUsuario == dto.FkIdUsuario, ct);
-        if (meta is null || carteira is null || dto.Valor <= 0) return ServiceResult<AportesMetasResponseDto>.BadRequest("Meta, usuario, carteira e valor maior que zero sao obrigatorios.");
+        if (meta is null || dto.Valor <= 0) return ServiceResult<AportesMetasResponseDto>.BadRequest("Meta e valor maior que zero sao obrigatorios.");
+        
+        Carteiras? carteira = null;
+        if (dto.FkIdCarteira.HasValue)
+        {
+            carteira = await db.Carteiras.FirstOrDefaultAsync(x => x.Id == dto.FkIdCarteira.Value && x.FkIdUsuario == dto.FkIdUsuario, ct);
+            if (carteira is null) return ServiceResult<AportesMetasResponseDto>.BadRequest("Carteira informada nao existe para o usuario.");
+        }
+
         var now = FinanceRules.Now();
         var item = new AportesMetas { FkIdMeta = dto.FkIdMeta, FkIdUsuario = dto.FkIdUsuario, FkIdCarteira = dto.FkIdCarteira, Valor = dto.Valor, DataAporte = dto.DataAporte, Observacao = dto.Observacao, DataCriacao = now, DataAtualizacao = now };
         ApplyAporte(meta, carteira, dto.Valor);
@@ -495,12 +553,31 @@ public sealed class AportesMetasService(FafnirContext db) : IAportesMetasService
         var item = await db.AportesMetas.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (item is null) return ServiceResult<AportesMetasResponseDto>.NotFound("Aporte nao encontrado.");
         if (dto.Valor <= 0) return ServiceResult<AportesMetasResponseDto>.BadRequest("Valor deve ser maior que zero.");
+        
         var meta = await db.Metas.FirstAsync(x => x.Id == item.FkIdMeta, ct);
-        var oldCarteira = await db.Carteiras.FirstAsync(x => x.Id == item.FkIdCarteira, ct);
+        
+        Carteiras? oldCarteira = null;
+        if (item.FkIdCarteira.HasValue)
+        {
+            oldCarteira = await db.Carteiras.FirstOrDefaultAsync(x => x.Id == item.FkIdCarteira.Value, ct);
+        }
         ApplyAporte(meta, oldCarteira, -item.Valor);
-        var newCarteira = item.FkIdCarteira == dto.FkIdCarteira ? oldCarteira : await db.Carteiras.FirstOrDefaultAsync(x => x.Id == dto.FkIdCarteira && x.FkIdUsuario == item.FkIdUsuario, ct);
-        if (newCarteira is null) return ServiceResult<AportesMetasResponseDto>.BadRequest("Carteira informada nao existe para o usuario.");
-        item.FkIdCarteira = dto.FkIdCarteira; item.Valor = dto.Valor; item.DataAporte = dto.DataAporte; item.Observacao = dto.Observacao; item.DataAtualizacao = FinanceRules.Now();
+        
+        Carteiras? newCarteira = null;
+        if (dto.FkIdCarteira.HasValue)
+        {
+            newCarteira = (item.FkIdCarteira == dto.FkIdCarteira) 
+                ? oldCarteira 
+                : await db.Carteiras.FirstOrDefaultAsync(x => x.Id == dto.FkIdCarteira.Value && x.FkIdUsuario == item.FkIdUsuario, ct);
+            if (newCarteira is null) return ServiceResult<AportesMetasResponseDto>.BadRequest("Carteira informada nao existe para o usuario.");
+        }
+        
+        item.FkIdCarteira = dto.FkIdCarteira; 
+        item.Valor = dto.Valor; 
+        item.DataAporte = dto.DataAporte; 
+        item.Observacao = dto.Observacao; 
+        item.DataAtualizacao = FinanceRules.Now();
+        
         ApplyAporte(meta, newCarteira, dto.Valor);
         await db.SaveChangesAsync(ct);
         return ServiceResult<AportesMetasResponseDto>.Ok(item.ToDto());
@@ -511,19 +588,28 @@ public sealed class AportesMetasService(FafnirContext db) : IAportesMetasService
         var item = await db.AportesMetas.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (item is null) return ServiceResult<object>.NotFound("Aporte nao encontrado.");
         var meta = await db.Metas.FirstAsync(x => x.Id == item.FkIdMeta, ct);
-        var carteira = await db.Carteiras.FirstAsync(x => x.Id == item.FkIdCarteira, ct);
+        
+        Carteiras? carteira = null;
+        if (item.FkIdCarteira.HasValue)
+        {
+            carteira = await db.Carteiras.FirstOrDefaultAsync(x => x.Id == item.FkIdCarteira.Value, ct);
+        }
+        
         ApplyAporte(meta, carteira, -item.Valor);
         db.AportesMetas.Remove(item); await db.SaveChangesAsync(ct);
         return ServiceResult<object>.NoContent();
     }
 
-    private static void ApplyAporte(Metas meta, Carteiras carteira, decimal valor)
+    private static void ApplyAporte(Metas meta, Carteiras? carteira, decimal valor)
     {
         meta.ValorAtual += valor;
         meta.Concluida = meta.ValorAtual >= meta.ValorAlvo;
         meta.DataAtualizacao = FinanceRules.Now();
-        carteira.SaldoInicial -= valor;
-        carteira.DataAtualizacao = FinanceRules.Now();
+        if (carteira is not null)
+        {
+            carteira.SaldoInicial -= valor;
+            carteira.DataAtualizacao = FinanceRules.Now();
+        }
     }
 }
 
@@ -545,8 +631,42 @@ public sealed class DashboardService(FafnirContext db) : IDashboardService
         var totalDespesasTransacoes = await transacoes.Where(x => x.Tipo == "DESPESA").SumAsync(x => x.Valor, ct);
         var totalDespesas = totalDespesasTransacoes + totalAssinaturas;
 
-        var metasDoMes = await db.Metas.AsNoTracking().Where(x => x.FkIdUsuario == usuarioId && x.MesReferencia == mes && x.AnoReferencia == ano).ToListAsync(ct);
-        
+        var allMetas = await db.Metas.Where(x => x.FkIdUsuario == usuarioId && x.Ativa).ToListAsync(ct);
+        var totalGuardadoNoMes = await db.AportesMetas.Where(x => x.FkIdUsuario == usuarioId && x.DataAporte.Month == mes && x.DataAporte.Year == ano).SumAsync(x => x.Valor, ct);
+
+        decimal metaEconomiaMensalAlvo = 0;
+        decimal metaEconomiaMensalProgresso = 0;
+
+        foreach (var meta in allMetas)
+        {
+            if (meta.DataFim.HasValue)
+            {
+                var aportesDaMeta = await db.AportesMetas
+                    .Where(x => x.FkIdMeta == meta.Id)
+                    .ToListAsync(ct);
+
+                var contributedThisMonth = aportesDaMeta
+                    .Where(x => x.DataAporte.Month == mes && x.DataAporte.Year == ano)
+                    .Sum(x => x.Valor);
+
+                var contributedAfter = aportesDaMeta
+                    .Where(x => x.DataAporte.Year > ano || (x.DataAporte.Year == ano && x.DataAporte.Month > mes))
+                    .Sum(x => x.Valor);
+
+                var valorAtualAtStart = meta.ValorAtual - contributedThisMonth - contributedAfter;
+                var restante = meta.ValorAlvo - valorAtualAtStart;
+                if (restante < 0) restante = 0;
+
+                int mesesRestantes = ((meta.DataFim.Value.Year - ano) * 12) + meta.DataFim.Value.Month - mes + 1;
+                if (mesesRestantes <= 0) mesesRestantes = 1;
+
+                var targetThisMonth = restante / mesesRestantes;
+
+                metaEconomiaMensalAlvo += targetThisMonth;
+                metaEconomiaMensalProgresso += contributedThisMonth;
+            }
+        }
+
         // Combine transaction expenses and subscriptions by category
         var gastosPorCategoriaTransacoes = await TransacoesService.TotaisCategoria(db, usuarioId, mes, ano, "despesa", ct);
         var gastosPorCategoriaCombined = gastosPorCategoriaTransacoes
@@ -559,7 +679,7 @@ public sealed class DashboardService(FafnirContext db) : IDashboardService
         }
 
         var receitasPorCategoria = await TransacoesService.TotaisCategoria(db, usuarioId, mes, ano, "receita", ct);
-        var metasAtivas = await db.Metas.AsNoTracking().Where(x => x.FkIdUsuario == usuarioId && x.Ativa).OrderBy(x => x.Id).Select(x => x.ToDto()).ToListAsync(ct);
+        var metasAtivas = allMetas.Select(x => x.ToDto()).ToList();
         
         // Fetch budget limits and include active subscriptions in category spending totals
         var orcamentos = await db.OrcamentosMensais.AsNoTracking()
@@ -587,11 +707,13 @@ public sealed class DashboardService(FafnirContext db) : IDashboardService
             totalDespesas,
             totalReceitas - totalDespesas, // TotalDespesas already includes subscriptions now
             totalAssinaturas,
-            metasDoMes.Count,
-            metasDoMes.Sum(x => x.ValorAtual),
+            allMetas.Count,
+            totalGuardadoNoMes,
             gastosPorCategoriaCombined,
             receitasPorCategoria,
             orcamentosResponse,
-            metasAtivas);
+            metasAtivas,
+            Math.Round(metaEconomiaMensalAlvo, 2),
+            Math.Round(metaEconomiaMensalProgresso, 2));
     }
 }

@@ -15,3 +15,8 @@ services:
       Auth__TokenSecret: "${AUTH_TOKEN_SECRET}"
       Cors__AllowedOrigins__0: "${CORS_ALLOWED_ORIGIN_1:-}"
       Cors__AllowedOrigins__1: "${CORS_ALLOWED_ORIGIN_2:-}"
+      OpenFinance__Pluggy__ClientId: "${PLUGGY_CLIENT_ID:-}"
+      OpenFinance__Pluggy__ClientSecret: "${PLUGGY_CLIENT_SECRET:-}"
+      OpenFinance__Pluggy__ApiUrl: "${PLUGGY_API_URL:-https://api.pluggy.ai}"
+      OpenFinance__WebhookUrl: "${OPEN_FINANCE_WEBHOOK_URL:-}"
+      OpenFinance__RedirectUri: "${OPEN_FINANCE_REDIRECT_URI:-}"

@@ -177,10 +177,6 @@ public partial class FafnirContext : DbContext
                 .HasPrecision(14, 2)
                 .HasDefaultValueSql("0.00");
 
-            entity.HasOne(d => d.FkIdCarteiraNavigation).WithMany(p => p.Metas)
-                .HasForeignKey(d => d.FkIdCarteira)
-                .OnDelete(DeleteBehavior.Restrict);
-
             entity.HasOne(d => d.FkIdUsuarioNavigation).WithMany(p => p.Metas).HasForeignKey(d => d.FkIdUsuario);
         });
 

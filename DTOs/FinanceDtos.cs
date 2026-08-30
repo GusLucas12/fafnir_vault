@@ -29,13 +29,13 @@ public record OrcamentosMensaisUpdateDto(int FkIdCategoria, short MesReferencia,
 public record OrcamentosMensaisResponseDto(int Id, int FkIdUsuario, int FkIdCategoria, short MesReferencia, int AnoReferencia, decimal ValorLimite, DateTime DataCriacao, DateTime DataAtualizacao);
 public record OrcamentoCategoriaDto(int FkIdCategoria, string Categoria, decimal ValorLimite, decimal TotalGasto, decimal SaldoDisponivel);
 
-public record MetasCreateDto(int FkIdUsuario, int FkIdCarteira, string Nome, string? Descricao, string TipoMeta, decimal ValorAlvo, decimal? ValorAtual, short? MesReferencia, int? AnoReferencia, DateTime DataInicio, DateTime? DataFim, bool Ativa);
-public record MetasUpdateDto(int FkIdCarteira, string Nome, string? Descricao, string TipoMeta, decimal ValorAlvo, decimal ValorAtual, short? MesReferencia, int? AnoReferencia, DateTime DataInicio, DateTime? DataFim, bool Ativa);
-public record MetasResponseDto(int Id, int FkIdUsuario, int FkIdCarteira, string Nome, string? Descricao, string TipoMeta, decimal ValorAlvo, decimal ValorAtual, short? MesReferencia, int? AnoReferencia, DateTime DataInicio, DateTime? DataFim, bool Ativa, bool Concluida, DateTime DataCriacao, DateTime DataAtualizacao);
+public record MetasCreateDto(int FkIdUsuario, string Nome, string? Descricao, string TipoMeta, decimal ValorAlvo, decimal? ValorAtual, short? MesReferencia, int? AnoReferencia, DateTime DataInicio, DateTime? DataFim, bool Ativa);
+public record MetasUpdateDto(string Nome, string? Descricao, string TipoMeta, decimal ValorAlvo, decimal ValorAtual, short? MesReferencia, int? AnoReferencia, DateTime DataInicio, DateTime? DataFim, bool Ativa);
+public record MetasResponseDto(int Id, int FkIdUsuario, string Nome, string? Descricao, string TipoMeta, decimal ValorAlvo, decimal ValorAtual, short? MesReferencia, int? AnoReferencia, DateTime DataInicio, DateTime? DataFim, bool Ativa, bool Concluida, DateTime DataCriacao, DateTime DataAtualizacao, decimal? ValorMensalNecessario);
 
-public record AportesMetasCreateDto(int FkIdMeta, int FkIdUsuario, int FkIdCarteira, decimal Valor, DateTime DataAporte, string? Observacao);
-public record AportesMetasUpdateDto(int FkIdCarteira, decimal Valor, DateTime DataAporte, string? Observacao);
-public record AportesMetasResponseDto(int Id, int FkIdMeta, int FkIdUsuario, int FkIdCarteira, decimal Valor, DateTime DataAporte, string? Observacao, DateTime DataCriacao, DateTime DataAtualizacao);
+public record AportesMetasCreateDto(int FkIdMeta, int FkIdUsuario, int? FkIdCarteira, decimal Valor, DateTime DataAporte, string? Observacao);
+public record AportesMetasUpdateDto(int? FkIdCarteira, decimal Valor, DateTime DataAporte, string? Observacao);
+public record AportesMetasResponseDto(int Id, int FkIdMeta, int FkIdUsuario, int? FkIdCarteira, decimal Valor, DateTime DataAporte, string? Observacao, DateTime DataCriacao, DateTime DataAtualizacao);
 
 public record DashboardMensalResponseDto(
     decimal TotalReceitas,
@@ -47,4 +47,6 @@ public record DashboardMensalResponseDto(
     IReadOnlyList<CategoriaTotalDto> GastosPorCategoria,
     IReadOnlyList<CategoriaTotalDto> ReceitasPorCategoria,
     IReadOnlyList<OrcamentoCategoriaDto> OrcamentosPorCategoria,
-    IReadOnlyList<MetasResponseDto> MetasAtivas);
+    IReadOnlyList<MetasResponseDto> MetasAtivas,
+    decimal MetaEconomiaMensalAlvo,
+    decimal MetaEconomiaMensalProgresso);
