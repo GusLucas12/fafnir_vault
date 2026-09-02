@@ -12,7 +12,7 @@ public class AiOptions
 public class GeminiOptions
 {
     public string ApiKey { get; set; } = string.Empty;
-    public string Model { get; set; } = "gemini-3-flash-preview";
+    public string Model { get; set; } = "gemini-3.1-flash-lite";
     public string ApiUrl { get; set; } = "https://generativelanguage.googleapis.com/v1beta/models";
     public int TimeoutSeconds { get; set; } = 30;
     public double Temperature { get; set; } = 0.3;

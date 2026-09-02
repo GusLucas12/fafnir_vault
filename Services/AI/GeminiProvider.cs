@@ -44,8 +44,8 @@ public sealed class GeminiProvider : IAiProvider
                 ErrorMessage: "Chave da API Gemini não configurada.");
         }
 
-        var primaryModel = string.IsNullOrWhiteSpace(geminiConfig.Model) ? "gemini-3-flash-preview" : geminiConfig.Model.Trim();
-        var candidateModels = new[] { primaryModel, "gemini-3-flash-preview", "gemini-3.7-flash", "gemini-3.5-flash" }
+        var primaryModel = string.IsNullOrWhiteSpace(geminiConfig.Model) ? "gemini-3.1-flash-lite" : geminiConfig.Model.Trim();
+        var candidateModels = new[] { primaryModel, "gemini-3.1-flash-lite", "gemini-3.1-flash-lite-preview", "gemini-3-flash-preview", "gemini-3.7-flash" }
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
