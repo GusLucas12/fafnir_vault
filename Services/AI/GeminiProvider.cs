@@ -44,8 +44,8 @@ public sealed class GeminiProvider : IAiProvider
                 ErrorMessage: "Chave da API Gemini não configurada.");
         }
 
-        var primaryModel = string.IsNullOrWhiteSpace(geminiConfig.Model) ? "gemini-3.7-flash" : geminiConfig.Model.Trim();
-        var candidateModels = new[] { primaryModel, "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash" }
+        var primaryModel = string.IsNullOrWhiteSpace(geminiConfig.Model) ? "gemini-3-flash-preview" : geminiConfig.Model.Trim();
+        var candidateModels = new[] { primaryModel, "gemini-3-flash-preview", "gemini-3.7-flash", "gemini-3.5-flash" }
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -113,7 +113,8 @@ public sealed class GeminiProvider : IAiProvider
             GenerationConfig = new GeminiGenerationConfig
             {
                 Temperature = request.Temperature ?? geminiConfig.Temperature,
-                MaxOutputTokens = request.MaxTokens ?? geminiConfig.MaxOutputTokens
+                MaxOutputTokens = request.MaxTokens ?? geminiConfig.MaxOutputTokens,
+                ThinkingConfig = new GeminiThinkingConfig { ThinkingBudget = 0 }
             }
         };
 
@@ -290,6 +291,12 @@ public sealed class GeminiProvider : IAiProvider
     {
         public double? Temperature { get; set; }
         public int? MaxOutputTokens { get; set; }
+        public GeminiThinkingConfig? ThinkingConfig { get; set; }
+    }
+
+    public class GeminiThinkingConfig
+    {
+        public int ThinkingBudget { get; set; } = 0;
     }
 
     public class GeminiGenerateResponse
