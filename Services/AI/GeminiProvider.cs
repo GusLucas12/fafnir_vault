@@ -124,7 +124,7 @@ public sealed class GeminiProvider : IAiProvider
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
 
-        var timeoutSeconds = geminiConfig.TimeoutSeconds > 0 ? geminiConfig.TimeoutSeconds : 30;
+        var perAttemptTimeoutSeconds = Math.Clamp(geminiConfig.TimeoutSeconds > 0 ? geminiConfig.TimeoutSeconds : 12, 5, 20);
 
         foreach (var model in candidateModels)
         {
@@ -135,7 +135,7 @@ public sealed class GeminiProvider : IAiProvider
                 Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
             };
 
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(perAttemptTimeoutSeconds));
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
             try
@@ -232,30 +232,16 @@ public sealed class GeminiProvider : IAiProvider
                 FinishReason: finishReason,
                 Success: true);
         }
-        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
-        {
-            _logger.LogWarning("Timeout ao chamar Gemini API após {Seconds}s.", timeoutSeconds);
-            return new AiResponseDto(
-                Content: string.Empty,
-                PromptTokens: 0,
-                CandidatesTokens: 0,
-                TotalTokens: 0,
-                FinishReason: "TIMEOUT",
-                Success: false,
-                ErrorMessage: "Tempo limite de resposta do assistente excedido.");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Exceção ao comunicar com a Gemini API: {Message}", ex.Message);
-            return new AiResponseDto(
-                Content: string.Empty,
-                PromptTokens: 0,
-                CandidatesTokens: 0,
-                TotalTokens: 0,
-                FinishReason: "EXCEPTION",
-                Success: false,
-                ErrorMessage: "Falha de conexão com o assistente de IA.");
-        }
+            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)
+            {
+                _logger.LogWarning("Timeout no modelo Gemini ({Model}) após {Seconds}s. Tentando próximo modelo...", model, perAttemptTimeoutSeconds);
+                continue;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Exceção ao comunicar com a Gemini API ({Model}): {Message}", model, ex.Message);
+                continue;
+            }
         } // end foreach model
 
         return new AiResponseDto(
