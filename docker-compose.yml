@@ -20,3 +20,8 @@ services:
       OpenFinance__Pluggy__ApiUrl: "${PLUGGY_API_URL:-https://api.pluggy.ai}"
       OpenFinance__WebhookUrl: "${OPEN_FINANCE_WEBHOOK_URL:-}"
       OpenFinance__RedirectUri: "${OPEN_FINANCE_REDIRECT_URI:-}"
+      Ai__Provider: "${AI_PROVIDER:-Gemini}"
+      Ai__Gemini__ApiKey: "${GEMINI_API_KEY:-}"
+      Ai__Gemini__Model: "${GEMINI_MODEL:-gemini-1.5-flash}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+
