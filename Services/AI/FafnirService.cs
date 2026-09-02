@@ -144,6 +144,11 @@ public sealed class FafnirService : IFafnirService
     #region Rule-based Fallback & Warnings
     private static string BuildFallbackResponse(FafnirFinancialContext ctx, string question)
     {
+        if (ctx.Intent == "general_conversation")
+        {
+            return "Olá! Sou o Fafnir, seu assistente pessoal de finanças. Posso te ajudar a analisar seus gastos, acompanhar metas, calcular a viabilidade de compras e fornecer resumos financeiros. Como posso te ajudar hoje?";
+        }
+
         if (ctx.Affordability != null)
         {
             var aff = ctx.Affordability;

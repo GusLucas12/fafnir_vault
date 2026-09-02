@@ -34,6 +34,16 @@ public sealed class FafnirContextBuilder : IFafnirContextBuilder
 
         var normalizedQuestion = question.Trim().ToLowerInvariant();
 
+        // 0. Check for Greeting / General Assistant intro
+        if (IsGreetingOrGeneralChat(normalizedQuestion))
+        {
+            return new FafnirFinancialContext
+            {
+                Period = periodStr,
+                Intent = "general_conversation"
+            };
+        }
+
         // 1. Check for Affordability Intent (e.g. "Posso comprar um celular de R$ 2.000?")
         if (IsAffordabilityIntent(normalizedQuestion, out var purchaseAmount, out var itemDesc))
         {
@@ -655,6 +665,19 @@ public sealed class FafnirContextBuilder : IFafnirContextBuilder
         }
 
         return null;
+    }
+
+    private static bool IsGreetingOrGeneralChat(string q)
+    {
+        var greetings = new[]
+        {
+            "ola", "olá", "oi", "oii", "bom dia", "boa tarde", "boa noite", "e ai", "e aí",
+            "tudo bem", "tudo bom", "como vai", "quem e voce", "quem é você", "o que voce faz",
+            "o que você faz", "como funciona", "ajuda", "help", "obrigado", "obrigada", "valeu", "vlw"
+        };
+
+        var cleaned = q.Trim().TrimEnd('.', '!', '?', ',');
+        return greetings.Any(g => cleaned == g || cleaned.StartsWith(g + " "));
     }
     #endregion
 }

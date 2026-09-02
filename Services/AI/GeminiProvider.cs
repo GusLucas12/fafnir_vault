@@ -44,17 +44,18 @@ public sealed class GeminiProvider : IAiProvider
                 ErrorMessage: "Chave da API Gemini não configurada.");
         }
 
-        var model = string.IsNullOrWhiteSpace(geminiConfig.Model) ? "gemini-1.5-flash" : geminiConfig.Model.Trim();
+        var primaryModel = string.IsNullOrWhiteSpace(geminiConfig.Model) ? "gemini-3.7-flash" : geminiConfig.Model.Trim();
+        var candidateModels = new[] { primaryModel, "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash" }
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         var baseUrl = string.IsNullOrWhiteSpace(geminiConfig.ApiUrl) 
             ? "https://generativelanguage.googleapis.com/v1beta/models" 
             : geminiConfig.ApiUrl.TrimEnd('/');
 
-        var requestUrl = $"{baseUrl}/{model}:generateContent?key={apiKey}";
-
-        // Build contents list
+        // Build contents list ensuring valid alternating 'user' / 'model' turns
         var contents = new List<GeminiContent>();
 
-        // Add history turns (mapping 'assistant' to 'model')
         if (request.History != null)
         {
             foreach (var msg in request.History)
@@ -66,21 +67,39 @@ public sealed class GeminiProvider : IAiProvider
                     ? "model"
                     : "user";
 
-                contents.Add(new GeminiContent
+                // Gemini API requires the first turn to be 'user'
+                if (contents.Count == 0 && role == "model") continue;
+
+                // Merge consecutive messages with the same role
+                if (contents.Count > 0 && contents[^1].Role == role)
                 {
-                    Role = role,
-                    Parts = new List<GeminiPart> { new() { Text = msg.Content } }
-                });
+                    contents[^1].Parts.Add(new GeminiPart { Text = msg.Content });
+                }
+                else
+                {
+                    contents.Add(new GeminiContent
+                    {
+                        Role = role,
+                        Parts = new List<GeminiPart> { new() { Text = msg.Content } }
+                    });
+                }
             }
         }
 
         // Add the current prompt with context
         var formattedUserMessage = FafnirPrompts.FormatUserPromptWithContext(request.ContextJson, request.UserPrompt);
-        contents.Add(new GeminiContent
+        if (contents.Count > 0 && contents[^1].Role == "user")
         {
-            Role = "user",
-            Parts = new List<GeminiPart> { new() { Text = formattedUserMessage } }
-        });
+            contents[^1].Parts.Add(new GeminiPart { Text = formattedUserMessage });
+        }
+        else
+        {
+            contents.Add(new GeminiContent
+            {
+                Role = "user",
+                Parts = new List<GeminiPart> { new() { Text = formattedUserMessage } }
+            });
+        }
 
         var payload = new GeminiGenerateRequest
         {
@@ -104,57 +123,68 @@ public sealed class GeminiProvider : IAiProvider
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, requestUrl)
-        {
-            Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
-        };
-
         var timeoutSeconds = geminiConfig.TimeoutSeconds > 0 ? geminiConfig.TimeoutSeconds : 30;
-        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
-        try
+        foreach (var model in candidateModels)
         {
-            var response = await _httpClient.SendAsync(httpRequest, linkedCts.Token);
+            var requestUrl = $"{baseUrl}/{model}:generateContent?key={apiKey}";
 
-            if (!response.IsSuccessStatusCode)
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, requestUrl)
             {
-                var errorBody = await response.Content.ReadAsStringAsync(CancellationToken.None);
-                _logger.LogWarning("Gemini API retornou erro HTTP {StatusCode}: {ErrorBody}", response.StatusCode, errorBody);
+                Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
+            };
 
-                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+            try
+            {
+                var response = await _httpClient.SendAsync(httpRequest, linkedCts.Token);
+
+                if (!response.IsSuccessStatusCode)
                 {
+                    var errorBody = await response.Content.ReadAsStringAsync(CancellationToken.None);
+                    _logger.LogWarning("Gemini API ({Model}) retornou erro HTTP {StatusCode}: {ErrorBody}", model, response.StatusCode, errorBody);
+
+                    // If model not found (404) or high demand (503), try next candidate model
+                    if (response.StatusCode == HttpStatusCode.NotFound || response.StatusCode == HttpStatusCode.ServiceUnavailable)
+                    {
+                        continue;
+                    }
+
+                    if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                    {
+                        return new AiResponseDto(
+                            Content: string.Empty,
+                            PromptTokens: 0,
+                            CandidatesTokens: 0,
+                            TotalTokens: 0,
+                            FinishReason: "RATE_LIMIT",
+                            Success: false,
+                            ErrorMessage: "Limite de requisições excedido temporariamente no provedor de IA.");
+                    }
+
+                    if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+                    {
+                        return new AiResponseDto(
+                            Content: string.Empty,
+                            PromptTokens: 0,
+                            CandidatesTokens: 0,
+                            TotalTokens: 0,
+                            FinishReason: "AUTH_ERROR",
+                            Success: false,
+                            ErrorMessage: "Erro de autenticação com a API da Gemini.");
+                    }
+
                     return new AiResponseDto(
                         Content: string.Empty,
                         PromptTokens: 0,
                         CandidatesTokens: 0,
                         TotalTokens: 0,
-                        FinishReason: "RATE_LIMIT",
+                        FinishReason: "PROVIDER_ERROR",
                         Success: false,
-                        ErrorMessage: "Limite de requisições excedido temporariamente no provedor de IA.");
+                        ErrorMessage: $"Erro no provedor de IA (HTTP {response.StatusCode}): {errorBody}");
                 }
-
-                if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-                {
-                    return new AiResponseDto(
-                        Content: string.Empty,
-                        PromptTokens: 0,
-                        CandidatesTokens: 0,
-                        TotalTokens: 0,
-                        FinishReason: "AUTH_ERROR",
-                        Success: false,
-                        ErrorMessage: "Erro de autenticação com a API da Gemini.");
-                }
-
-                return new AiResponseDto(
-                    Content: string.Empty,
-                    PromptTokens: 0,
-                    CandidatesTokens: 0,
-                    TotalTokens: 0,
-                    FinishReason: "PROVIDER_ERROR",
-                    Success: false,
-                    ErrorMessage: $"Erro no provedor de IA (HTTP {response.StatusCode}): {errorBody}");
-            }
 
             var responseJson = await response.Content.ReadAsStringAsync(linkedCts.Token);
             var geminiResponse = JsonSerializer.Deserialize<GeminiGenerateResponse>(responseJson, new JsonSerializerOptions
@@ -225,6 +255,16 @@ public sealed class GeminiProvider : IAiProvider
                 Success: false,
                 ErrorMessage: "Falha de conexão com o assistente de IA.");
         }
+        } // end foreach model
+
+        return new AiResponseDto(
+            Content: string.Empty,
+            PromptTokens: 0,
+            CandidatesTokens: 0,
+            TotalTokens: 0,
+            FinishReason: "MODELS_UNAVAILABLE",
+            Success: false,
+            ErrorMessage: "Nenhum modelo Gemini disponível no momento.");
     }
 
     #region Internal Gemini DTOs
